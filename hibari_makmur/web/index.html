@@ -31,9 +31,14 @@
 
   <title>Sinar Sehati</title>
   <link rel="manifest" href="manifest.json">
-  <!-- pdf.js disimpan lokal agar pratinjau faktur tetap jalan tanpa CDN/offline -->
+  <!-- pdf.js disimpan lokal agar pratinjau faktur tetap jalan tanpa CDN/offline.
+       Dimuat langsung di sini (bukan lewat variabel dartPdfJsBaseUrl) karena
+       package printing 5.14 macet di mode debug saat membaca variabel itu. -->
+  <script src="pdfjs/pdf.min.js"></script>
   <script>
-    var dartPdfJsBaseUrl = "pdfjs/";
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs/pdf.worker.min.js";
+    }
   </script>
 </head>
 <body>

@@ -41,7 +41,10 @@ Semua memakai password `admin123`:
   Continuous Form (dot matrix), Struk 80 mm / 58 mm (thermal); judul; catatan kaki;
   tampilkan logo, terbilang, dan kolom tanda tangan.
 - Template ada di `lib/faktur/faktur_pdf.dart`. Contoh hasil: `docs/faktur_A5.png`, `docs/faktur_Struk.png`.
-- pdf.js untuk pratinjau di web disimpan lokal di `web/pdfjs/` (tetap jalan tanpa internet).
+- pdf.js untuk pratinjau di web disimpan lokal di `web/pdfjs/` dan dimuat langsung oleh
+  `web/index.html` (tetap jalan tanpa internet). Jangan pakai variabel `dartPdfJsBaseUrl`:
+  package printing 5.14 macet di mode debug saat membacanya.
+- Di mode debug (`flutter run`) pembuatan PDF butuh beberapa detik; di build release jauh lebih cepat.
 
 ## Persiapan Supabase (sekali saja)
 1. Buat project di https://supabase.com.
