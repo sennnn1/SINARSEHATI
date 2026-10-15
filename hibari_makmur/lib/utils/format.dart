@@ -58,3 +58,26 @@ bool dalamRentang(DateTime d, DateTimeRange r) {
 /// Persentase perubahan; null kalau pembanding nol.
 double? persenPerubahan(double sekarang, double sebelumnya) =>
     sebelumnya == 0 ? null : (sekarang - sebelumnya) / sebelumnya * 100;
+
+/// 1250000 -> "satu juta dua ratus lima puluh ribu"
+String terbilang(num nilai) {
+  const satuan = [
+    '', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', //
+    'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas',
+  ];
+  String t(int n) {
+    if (n < 12) return satuan[n];
+    if (n < 20) return '${t(n - 10)} belas';
+    if (n < 100) return '${t(n ~/ 10)} puluh ${t(n % 10)}';
+    if (n < 200) return 'seratus ${t(n - 100)}';
+    if (n < 1000) return '${t(n ~/ 100)} ratus ${t(n % 100)}';
+    if (n < 2000) return 'seribu ${t(n - 1000)}';
+    if (n < 1000000) return '${t(n ~/ 1000)} ribu ${t(n % 1000)}';
+    if (n < 1000000000) return '${t(n ~/ 1000000)} juta ${t(n % 1000000)}';
+    return '${t(n ~/ 1000000000)} miliar ${t(n % 1000000000)}';
+  }
+
+  final n = nilai.round().abs();
+  if (n == 0) return 'nol';
+  return t(n).replaceAll(RegExp(r'\s+'), ' ').trim();
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/app_state.dart';
+import '../faktur/faktur_page.dart';
 import '../models/models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -100,6 +101,23 @@ class _PengaturanPageState extends State<PengaturanPage> {
           right: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              SectionCard(
+                title: 'Faktur',
+                icon: Icons.receipt_long,
+                iconColor: AppColors.brand,
+                trailing: OutlinedButton.icon(
+                  onPressed: s.penjualan.isEmpty
+                      ? null
+                      : () {
+                          final terbaru = [...s.penjualan]..sort((a, b) => b.kode.compareTo(a.kode));
+                          bukaFaktur(context, terbaru.first, penjualan: true);
+                        },
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('Lihat Contoh'),
+                ),
+                child: PengaturanFakturPanel(state: s, scroll: false),
+              ),
+              const SizedBox(height: 16),
               SectionCard(
                 title: 'Kategori & Satuan',
                 icon: Icons.label_outline,

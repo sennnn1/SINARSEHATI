@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/app_state.dart';
+import '../faktur/faktur_page.dart';
 import '../models/models.dart';
 import '../theme.dart';
 import '../utils/format.dart';
@@ -119,6 +120,12 @@ class _TransaksiPageState extends State<TransaksiPage> {
                       sel(rupiah(t.total)),
                       DataCell(StatusBadge(t.status)),
                       DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                        AksiButton(
+                          icon: Icons.print_outlined,
+                          tooltip: 'Cetak Faktur',
+                          color: AppColors.brand,
+                          onPressed: () => bukaFaktur(context, t, penjualan: pj),
+                        ),
                         AksiButton(
                           icon: Icons.visibility_outlined,
                           tooltip: 'Detail',
@@ -466,7 +473,17 @@ class DetailTransaksiDialog extends StatelessWidget {
           ),
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup')),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.pop(context);
+            bukaFaktur(context, t, penjualan: penjualan);
+          },
+          icon: const Icon(Icons.print_outlined, size: 18),
+          label: const Text('Cetak Faktur'),
+        ),
+      ],
     );
   }
 }

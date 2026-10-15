@@ -34,6 +34,15 @@ Semua memakai password `admin123`:
 - **Hak akses per role**: menu di sidebar menyesuaikan role (lihat `menus` di `lib/shell.dart`).
 - **Keluar** dari menu akun di pojok kanan atas.
 
+## Faktur
+- Tombol **printer** di daftar Penjualan/Pembelian (atau **Cetak Faktur** di detail transaksi)
+  membuka pratinjau faktur, lengkap dengan tombol Cetak dan Bagikan/Simpan PDF.
+- Panel **Atur Tampilan Faktur** (juga ada di menu Pengaturan): ukuran kertas A4, A5,
+  Continuous Form (dot matrix), Struk 80 mm / 58 mm (thermal); judul; catatan kaki;
+  tampilkan logo, terbilang, dan kolom tanda tangan.
+- Template ada di `lib/faktur/faktur_pdf.dart`. Contoh hasil: `docs/faktur_A5.png`, `docs/faktur_Struk.png`.
+- pdf.js untuk pratinjau di web disimpan lokal di `web/pdfjs/` (tetap jalan tanpa internet).
+
 ## Persiapan Supabase (sekali saja)
 1. Buat project di https://supabase.com.
 2. Authentication → Sign In / Providers → Email: aktifkan.

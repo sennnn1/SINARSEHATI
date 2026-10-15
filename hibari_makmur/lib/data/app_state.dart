@@ -35,6 +35,7 @@ class AppState extends ChangeNotifier {
   final List<MutasiStok> mutasi = [];
   final List<Biaya> biaya = [];
   ProfilToko profil = ProfilToko(nama: '', alamat: '', telepon: '', email: '');
+  PengaturanFaktur faktur = PengaturanFaktur();
 
   // ---------------------------------------------------------------- Barang
   Barang? cariBarang(String kode) {
@@ -226,6 +227,18 @@ class AppState extends ChangeNotifier {
   void hapusBiaya(Biaya b) {
     biaya.remove(b);
     notifyListeners();
+  }
+
+  void simpanFaktur(PengaturanFaktur f) {
+    faktur = f;
+    notifyListeners();
+  }
+
+  Kontak? cariKontak(bool isSupplier, String nama) {
+    for (final k in isSupplier ? supplier : pelanggan) {
+      if (k.nama == nama) return k;
+    }
+    return null;
   }
 
   void simpanProfil(ProfilToko p) {

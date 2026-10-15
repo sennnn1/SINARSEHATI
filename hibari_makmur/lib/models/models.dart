@@ -157,3 +157,29 @@ class ProfilToko {
   String telepon;
   String email;
 }
+
+/// Pengaturan tampilan faktur (diatur di menu Pengaturan).
+class PengaturanFaktur {
+  PengaturanFaktur({
+    this.ukuran = 'A5',
+    this.judulPenjualan = 'FAKTUR PENJUALAN',
+    this.judulPembelian = 'BUKTI PEMBELIAN',
+    this.catatanKaki =
+        'Terima kasih atas kepercayaan Anda.\nBarang yang sudah dibeli tidak dapat dikembalikan.',
+    this.tampilkanLogo = true,
+    this.tampilkanTandaTangan = true,
+    this.tampilkanTerbilang = true,
+  });
+
+  static const ukuranList = ['A4', 'A5', 'Continuous Form', 'Struk 80 mm', 'Struk 58 mm'];
+
+  String ukuran;
+  String judulPenjualan;
+  String judulPembelian;
+  String catatanKaki;
+  bool tampilkanLogo;
+  bool tampilkanTandaTangan;
+  bool tampilkanTerbilang;
+
+  bool get struk => ukuran.startsWith('Struk');
+}
