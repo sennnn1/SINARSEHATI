@@ -1,0 +1,54 @@
+# Sinar Sehati — Aplikasi Toko Perkakas & Kunci Pintu (Flutter)
+
+Satu kode untuk **web** dan **Android**.
+
+## Menjalankan
+
+Mode demo (tanpa internet, data contoh di memori):
+```
+flutter pub get
+flutter run -d chrome
+```
+
+Mode Supabase (akun asli, email lupa password dikirim sungguhan):
+```
+flutter run -d chrome --dart-define=SUPABASE_URL=https://xxxx.supabase.co --dart-define=SUPABASE_KEY=sb_publishable_xxx
+```
+URL & key ada di dashboard Supabase → Project Settings → API.
+
+### Akun demo
+Semua memakai password `admin123`:
+
+| Email | Role |
+|---|---|
+| admin@sinarsehati.id | Admin (semua menu) |
+| kasir@sinarsehati.id | Kasir |
+| gudang@sinarsehati.id | Gudang |
+| dewi@sinarsehati.id | Kasir — nonaktif (untuk menguji akun yang diblokir) |
+
+## Fitur login
+- **Login** dengan email & password, tombol tampilkan/sembunyikan password.
+- **Daftar** akun baru (otomatis role Kasir; admin bisa ubah di menu Pengguna).
+- **Lupa password** 2 langkah: kirim kode 6 digit ke email → isi kode + password baru.
+  Kirim ulang kode tersedia setelah 60 detik. Di mode demo, kode ditampilkan di layar.
+- **Hak akses per role**: menu di sidebar menyesuaikan role (lihat `menus` di `lib/shell.dart`).
+- **Keluar** dari menu akun di pojok kanan atas.
+
+## Persiapan Supabase (sekali saja)
+1. Buat project di https://supabase.com.
+2. Authentication → Sign In / Providers → Email: aktifkan.
+3. Authentication → Emails → **Reset Password**: ubah isi template agar memuat kode, contoh:
+   `<p>Kode reset password Sinar Sehati: <b>{{ .Token }}</b></p>`
+4. Untuk menjadikan seseorang Admin/Gudang: Authentication → Users → pilih user →
+   ubah *user metadata* menjadi `{"nama": "...", "role": "Admin"}`.
+
+Catatan: saat ini hanya **login** yang memakai Supabase. Data barang/transaksi masih
+data contoh di memori (`lib/data/app_state.dart`) dan menjadi langkah berikutnya.
+
+## Struktur
+- `lib/main.dart` — entry point, memilih mode demo / Supabase, `AuthGate`
+- `lib/auth/` — layanan login (demo & Supabase) dan halaman Login, Daftar, Lupa Password
+- `lib/shell.dart` — sidebar, top bar, daftar menu & hak akses role
+- `lib/data/app_state.dart` — data & logika toko
+- `lib/pages/` — satu file per menu
+- `assets/logo.svg` — logo Sinar Sehati (dari desain SIGN/login.html)

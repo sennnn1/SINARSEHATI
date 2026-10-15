@@ -1,0 +1,22 @@
+<svg viewBox="70 30 260 210" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF2A1"/>
+      <stop offset="30%" stop-color="#E1AD01"/>
+      <stop offset="70%" stop-color="#C59000"/>
+      <stop offset="100%" stop-color="#8A6000"/>
+    </linearGradient>
+    <linearGradient id="silverGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#D1D5DB"/>
+      <stop offset="100%" stop-color="#9CA3AF"/>
+    </linearGradient>
+  </defs>
+  <path d="M 200 40 L 320 120 L 295 120 L 200 58 L 105 120 L 80 120 Z" fill="url(#goldGradient)"/>
+  <path d="M 140 125 C 140 105, 250 105, 250 125 C 250 145, 140 155, 140 185 L 175 185 C 175 165, 220 160, 220 140 C 220 130, 175 130, 175 140 Z" fill="url(#goldGradient)"/>
+  <path d="M 220 130 L 260 110 C 268 106, 275 115, 270 122 L 245 142 Z" fill="url(#silverGradient)"/>
+  <circle cx="265" cy="115" r="5" fill="#111827"/>
+  <path d="M 140 185 C 140 225, 260 225, 260 185 L 225 185 C 225 205, 175 205, 175 185 Z" fill="url(#goldGradient)"/>
+  <path d="M 130 205 C 120 205, 110 215, 120 225 C 130 235, 160 225, 180 205 Z" fill="url(#silverGradient)"/>
+  <circle cx="130" cy="215" r="4" fill="#111827"/>
+</svg>
