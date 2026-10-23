@@ -528,10 +528,6 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
         suffixText: pilihSatuan == null ? b?.satuan : null,
         suffixIcon: pilihSatuan == null ? null : Padding(padding: const EdgeInsets.only(right: 8), child: pilihSatuan),
         suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        // Langsung terlihat jumlah buahnya, mis. "= 36 Bh (1 Dus = 36 Bh)".
-        helperText: isi > 1 ? '= ${angka(r.qDasar)} ${b!.satuan}  (${b.keteranganIsi(satuan!)})' : null,
-        helperStyle: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w600),
-        helperMaxLines: 2,
       ),
       onChanged: (_) => setState(() {}),
     );
@@ -574,9 +570,32 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       icon: const Icon(Icons.close, color: AppColors.red),
     );
 
+    // Keterangan di bawah baris: isi dus & perhitungannya, dan peringatan stok kurang.
+    final stokKurang = pj && b != null && r.qDasar > b.stok;
+    final info = b == null || (isi <= 1 && !stokKurang)
+        ? null
+        : Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Wrap(spacing: 8, runSpacing: 6, children: [
+              if (isi > 1)
+                _InfoChip(
+                  icon: Icons.inventory_2_outlined,
+                  teks: '${angka(r.q)} $satuan = ${angka(r.qDasar)} ${b.satuan}'
+                      '  ·  ${angka(r.qDasar)} × ${rupiah(r.h)} = ${rupiah(r.bruto)}',
+                  keterangan: b.keteranganIsi(satuan!),
+                ),
+              if (stokKurang)
+                _InfoChip(
+                  icon: Icons.warning_amber_rounded,
+                  teks: 'Stok tidak cukup: tersedia ${angka(b.stok)} ${b.satuan}',
+                  peringatan: true,
+                ),
+            ]),
+          );
+
     return Padding(
       key: ObjectKey(r),
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: LayoutBuilder(builder: (context, c) {
         // Layar sempit: barang di atas, lalu qty + harga, lalu diskon + subtotal + hapus.
         if (c.maxWidth < 600) {
@@ -595,9 +614,10 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
               Expanded(child: subtotal),
               hapus,
             ]),
+            ?info,
           ]);
         }
-        return Row(
+        final baris = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(flex: 5, child: barang),
@@ -612,6 +632,9 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
             hapus,
           ],
         );
+        return info == null
+            ? baris
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [baris, info]);
       }),
     );
   }
@@ -681,6 +704,42 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       return;
     }
     Navigator.pop(context, t);
+  }
+}
+
+/// Keterangan kecil di bawah baris barang (isi dus, stok kurang).
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.teks, this.keterangan, this.peringatan = false});
+
+  final IconData icon;
+  final String teks;
+  final String? keterangan;
+  final bool peringatan;
+
+  @override
+  Widget build(BuildContext context) {
+    final warna = peringatan ? const Color(0xFFB45309) : AppColors.brand;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: peringatan ? const Color(0xFFFFF7ED) : AppColors.brandSoft,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: warna),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(text: teks, style: TextStyle(color: warna, fontWeight: FontWeight.w600)),
+              if (keterangan != null)
+                TextSpan(text: '   ($keterangan)', style: const TextStyle(color: AppColors.muted)),
+            ]),
+            style: const TextStyle(fontSize: 12.5),
+          ),
+        ),
+      ]),
+    );
   }
 }
 

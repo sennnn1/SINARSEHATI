@@ -125,7 +125,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Dus').last);
     await tester.pumpAndSettle();
-    expect(find.textContaining('= 50 Pcs  (1 Dus = 50 Pcs)'), findsOneWidget);
+    expect(find.textContaining('1 Dus = 50 Pcs  ·  50 ×', findRichText: true), findsOneWidget);
     // Harga tetap per Pcs; jumlah baris = 50 x harga per Pcs.
     expect(find.widgetWithText(TextField, 'Harga / Pcs'), findsOneWidget);
     expect(find.text(rupiah(hargaPcs * 50)), findsWidgets);
@@ -184,5 +184,34 @@ void main() {
     expect(state.cariBarang(b.kode)!.stok, awal + 36);
     expect(state.mutasi.first.perubahan, 36);
     expect(state.mutasi.first.keterangan, 'Ubah data barang');
+  });
+
+  testWidgets('Form penjualan memperingatkan kalau stok kurang untuk 1 Dus', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final state = AppState();
+    final auth = DemoAuthService(state, jeda: Duration.zero);
+    await auth.login(DemoAuthService.emailDemo, DemoAuthService.passwordDemo);
+    await tester.pumpWidget(SinarSehatiApp(state: state, auth: auth));
+    await tester.pumpAndSettle();
+
+    final b = _engsel(state); // stok 3 Pcs, 1 Dus = 50 Pcs
+    tester.widget<ShellNav>(find.byType(ShellNav)).buka('Penjualan');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transaksi Baru'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Barang 1'), b.nama);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('${b.kode} — ${b.nama}').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Stok tidak cukup', findRichText: true), findsNothing);
+
+    await tester.tap(find.text('Pcs').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dus').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Stok tidak cukup: tersedia 3 Pcs', findRichText: true), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
