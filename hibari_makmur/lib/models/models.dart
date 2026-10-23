@@ -65,6 +65,7 @@ class ItemTransaksi {
     required this.satuan,
     required this.qty,
     required this.harga,
+    this.diskon = 0,
     this.hargaPokok = 0,
   });
 
@@ -74,10 +75,19 @@ class ItemTransaksi {
   final int qty;
   final double harga;
 
+  /// Diskon per barang dalam persen (0–100).
+  final double diskon;
+
   /// Harga beli barang saat dijual (untuk menghitung HPP / laba kotor).
   double hargaPokok;
 
-  double get subtotal => qty * harga;
+  /// Qty × harga sebelum diskon.
+  double get bruto => qty * harga;
+  double get nilaiDiskon => bruto * diskon / 100;
+
+  /// Harga satuan setelah diskon barang.
+  double get hargaBersih => harga * (1 - diskon / 100);
+  double get subtotal => bruto - nilaiDiskon;
 }
 
 class Transaksi {
@@ -89,6 +99,7 @@ class Transaksi {
     required this.status,
     this.catatan = '',
     this.daerah = '',
+    this.diskon = 0,
   });
 
   String kode;
@@ -104,8 +115,21 @@ class Transaksi {
   String status;
   final String catatan;
 
+  /// Potongan untuk seluruh faktur dalam rupiah (di luar diskon per barang).
+  final double diskon;
+
   bool get lunas => status == 'Lunas';
-  double get total => items.fold(0, (s, i) => s + i.subtotal);
+
+  /// Jumlah subtotal barang (sudah dikurangi diskon per barang).
+  double get subtotal => items.fold(0, (s, i) => s + i.subtotal);
+  double get diskonBarang => items.fold(0, (s, i) => s + i.nilaiDiskon);
+  double get totalDiskon => diskonBarang + diskon;
+  bool get adaDiskon => totalDiskon > 0;
+  double get total => subtotal - diskon < 0 ? 0 : subtotal - diskon;
+
+  /// Bagian [total] milik satu barang: potongan faktur dibagi rata
+  /// sebanding subtotal tiap barang (dipakai di laporan per barang/daerah).
+  double porsiTotal(ItemTransaksi i) => subtotal == 0 ? 0 : i.subtotal / subtotal * total;
   double get hpp => items.fold(0, (s, i) => s + i.qty * i.hargaPokok);
   double get labaKotor => total - hpp;
   int get jumlahQty => items.fold(0, (s, i) => s + i.qty);

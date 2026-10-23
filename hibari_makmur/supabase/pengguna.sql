@@ -137,3 +137,21 @@ create trigger pengguna_jaga_owner
 select email, role, aktif, dibuat_pada
 from public.pengguna
 order by dibuat_pada;
+
+-- -------------------------------------------- Hak akses tabel barang per role
+-- Dijalankan di sini karena butuh tabel pengguna. Semua yang login boleh
+-- melihat barang & stok; hanya Owner/Admin yang boleh menambah, mengubah
+-- (stok, harga), atau menghapus. Transaksi penjualan oleh Sales tetap bisa
+-- mengurangi stok lewat fungsi simpan_transaksi (security definer).
+drop policy if exists "barang_tulis" on public.barang;
+drop policy if exists "barang_tambah" on public.barang;
+drop policy if exists "barang_ubah" on public.barang;
+drop policy if exists "barang_hapus" on public.barang;
+create policy "barang_tambah" on public.barang
+  for insert to authenticated with check (public.peran_saya() in ('Owner', 'Admin'));
+create policy "barang_ubah" on public.barang
+  for update to authenticated
+  using (public.peran_saya() in ('Owner', 'Admin'))
+  with check (public.peran_saya() in ('Owner', 'Admin'));
+create policy "barang_hapus" on public.barang
+  for delete to authenticated using (public.peran_saya() in ('Owner', 'Admin'));

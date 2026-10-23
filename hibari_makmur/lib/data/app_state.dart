@@ -312,8 +312,9 @@ class AppState extends ChangeNotifier {
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang);
       if (b == null) continue;
-      b.hargaBeli = i.harga; // harga beli terakhir
-      i.hargaPokok = i.harga;
+      // Harga beli terakhir = harga setelah diskon barang dari supplier.
+      b.hargaBeli = i.hargaBersih;
+      i.hargaPokok = i.hargaBersih;
       _ubahStok(b, i.qty, 'Pembelian ${t.kode}', t.tanggal, sinkron: transaksiRepo == null);
     }
     pembelian.add(t);

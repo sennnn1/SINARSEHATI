@@ -31,6 +31,21 @@ Hak akses tiap role:
 - **Admin**: Home, Pembelian, Penjualan, Stok Barang, Laporan Pembelian/Penjualan/Stok,
   Data Barang, Supplier, Pelanggan, Pengaturan.
 - **Sales**: Home, Penjualan, Stok Barang, Laporan Penjualan, Data Pelanggan.
+  Stok Barang untuk Sales hanya **lihat saja** (tanpa Tambah Barang, Sesuaikan, atau ubah
+  barang), dan di form penjualan harga terkunci ke harga jual dari data barang. Sales tetap
+  boleh memberi diskon.
+
+## Diskon
+- **Diskon per barang** (kolom *Disc*, dalam persen) di setiap baris form Penjualan/Pembelian.
+- **Diskon faktur** untuk seluruh transaksi, diisi dalam persen atau rupiah; disimpan sebagai
+  potongan rupiah.
+- Total = jumlah subtotal barang setelah diskon − diskon faktur. Rinciannya (subtotal, diskon
+  barang, diskon faktur) tampil di detail transaksi dan faktur cetak; laporan penjualan/pembelian
+  dan file Excel-nya punya kolom Diskon.
+- Laba kotor otomatis berkurang sebesar diskon. Di rekap per barang/kategori/daerah, diskon
+  faktur dibagi ke tiap barang sebanding subtotalnya.
+- Pembelian: harga beli barang diperbarui ke harga **setelah diskon barang** (diskon faktur
+  pembelian tidak mengubah harga beli).
 
 ## Fitur login
 - **Login** dengan email & password, tombol tampilkan/sembunyikan password.
@@ -92,8 +107,14 @@ menyimpan bersamaan. Supplier, pengguna, profil toko, dan pengaturan faktur masi
 Mode demo tidak lagi berisi contoh transaksi; penjualan & pembelian mulai kosong.
 
 Catatan keamanan: status *nonaktif* menolak login di aplikasi (dan dicek ulang tiap sesi
-diperbarui), tetapi tabel data (barang, transaksi, dll.) belum dibatasi per role di database;
-pembatasan menu per role masih di sisi aplikasi.
+diperbarui). Tabel `barang` dibatasi per role di database (policy di akhir `pengguna.sql`):
+semua boleh membaca, hanya Owner/Admin yang boleh menambah, mengubah stok/harga, atau menghapus.
+Fungsi `simpan_transaksi` memakai harga jual dari database untuk Sales dan menolak pembelian
+dari Sales; `sesuaikan_stok` hanya untuk Owner/Admin. Tabel lain (transaksi, pelanggan) belum
+dibatasi per role; pembatasan menu masih di sisi aplikasi.
+
+**Setelah update diskon & hak akses Sales**, jalankan ulang `supabase/schema.sql`,
+`supabase/transaksi.sql`, lalu `supabase/pengguna.sql` (urutan ini) di SQL Editor.
 
 ## Struktur
 - `lib/main.dart` — entry point, memilih mode demo / Supabase, `AuthGate`

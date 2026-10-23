@@ -38,6 +38,7 @@ class TransaksiRepo {
       'p_status': t.status,
       'p_catatan': t.catatan,
       'p_daerah': t.daerah,
+      'p_diskon': t.diskon,
       'p_items': [
         for (final i in t.items)
           {
@@ -46,6 +47,7 @@ class TransaksiRepo {
             'satuan': i.satuan,
             'qty': i.qty,
             'harga': i.harga,
+            'diskon': i.diskon,
           },
       ],
     });
@@ -89,6 +91,7 @@ class TransaksiRepo {
       status: m['status'] as String,
       catatan: (m['catatan'] as String?) ?? '',
       daerah: (m['daerah'] as String?) ?? '',
+      diskon: (m['diskon'] as num?)?.toDouble() ?? 0,
       items: [
         for (final i in items)
           ItemTransaksi(
@@ -97,6 +100,7 @@ class TransaksiRepo {
             satuan: i['satuan'] as String,
             qty: i['qty'] as int,
             harga: (i['harga'] as num).toDouble(),
+            diskon: (i['diskon'] as num?)?.toDouble() ?? 0,
             hargaPokok: (i['harga_pokok'] as num).toDouble(),
           ),
       ],

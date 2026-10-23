@@ -45,7 +45,7 @@ class _DashboardPageState extends State<DashboardPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PageHeader(
-          title: '$sapa${nama.isEmpty ? '' : ', $nama'} 👋',
+          title: '$sapa${nama.isEmpty ? '' : ', $nama'}',
           subtitle: 'Ringkasan toko bulan ${namaBulan[now.month - 1]} ${now.year}',
         ),
         ResponsiveGrid(
@@ -302,7 +302,7 @@ List<ProdukTerjual> produkTerlaris(Iterable<Transaksi> penjualan) {
     for (final i in t.items) {
       final p = map.putIfAbsent(i.kodeBarang, () => ProdukTerjual(i.kodeBarang, i.namaBarang, i.satuan));
       p.qty += i.qty;
-      p.pendapatan += i.subtotal;
+      p.pendapatan += t.porsiTotal(i);
     }
   }
   return map.values.toList()..sort((a, b) => b.qty.compareTo(a.qty));

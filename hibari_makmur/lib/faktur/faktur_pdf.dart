@@ -117,6 +117,7 @@ Future<Uint8List> buatFakturPdf(DataFaktur d) async {
 // ------------------------------------------------------------ A4 / A5 / CF
 List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
   final t = d.transaksi;
+  final disc = t.items.any((i) => i.diskon > 0);
   final kecil = f.availableWidth < 140 * _mm; // A5
   final fs = kecil ? 8.0 : 9.5;
   final cfg = d.pengaturan;
@@ -237,12 +238,21 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
     ),
     pw.SizedBox(height: 10),
 
-    // Tabel barang
+    // Tabel barang (kolom Disc hanya muncul kalau ada diskon per barang)
     pw.TableHelper.fromTextArray(
-      headers: ['No', 'Kode', 'Nama Barang', 'Qty', 'Satuan', 'Harga', 'Jumlah'],
+      headers: ['No', 'Kode', 'Nama Barang', 'Qty', 'Satuan', 'Harga', if (disc) 'Disc', 'Jumlah'],
       data: [
         for (final (i, it) in t.items.indexed)
-          ['${i + 1}', it.kodeBarang, it.namaBarang, angka(it.qty), it.satuan, angka(it.harga), angka(it.subtotal)],
+          [
+            '${i + 1}',
+            it.kodeBarang,
+            it.namaBarang,
+            angka(it.qty),
+            it.satuan,
+            angka(it.harga),
+            if (disc) it.diskon > 0 ? persen(it.diskon) : '-',
+            angka(it.subtotal),
+          ],
       ],
       headerStyle: pw.TextStyle(fontSize: fs, fontWeight: pw.FontWeight.bold, color: hijau),
       headerDecoration: pw.BoxDecoration(
@@ -267,13 +277,15 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
         3: const pw.FixedColumnWidth(30),
         4: const pw.FixedColumnWidth(48),
         5: const pw.FlexColumnWidth(1.3),
-        6: const pw.FlexColumnWidth(1.5),
+        6: disc ? const pw.FixedColumnWidth(34) : const pw.FlexColumnWidth(1.5),
+        if (disc) 7: const pw.FlexColumnWidth(1.5),
       },
       cellAlignments: {
         0: pw.Alignment.center,
         3: pw.Alignment.centerRight,
         5: pw.Alignment.centerRight,
         6: pw.Alignment.centerRight,
+        if (disc) 7: pw.Alignment.centerRight,
       },
       headerAlignments: {
         1: pw.Alignment.centerLeft,
@@ -282,6 +294,7 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
         3: pw.Alignment.centerRight,
         5: pw.Alignment.centerRight,
         6: pw.Alignment.centerRight,
+        if (disc) 7: pw.Alignment.centerRight,
       },
     ),
     pw.SizedBox(height: 6),
@@ -310,6 +323,11 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
           child: pw.Column(
             children: [
               _barisTotal('Total Item', '${t.items.length} barang / ${angka(t.jumlahQty)} unit', fs, abu),
+              if (t.adaDiskon) ...[
+                _barisTotal('Subtotal', rupiah(t.subtotal + t.diskonBarang), fs, abu),
+                if (t.diskonBarang > 0) _barisTotal('Diskon Barang', '-${rupiah(t.diskonBarang)}', fs, abu),
+                if (t.diskon > 0) _barisTotal('Diskon Faktur', '-${rupiah(t.diskon)}', fs, abu),
+              ],
               pw.Container(
                 margin: const pw.EdgeInsets.only(top: 4),
                 padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
@@ -461,9 +479,17 @@ pw.Widget _struk(DataFaktur d, String? logo, PdfPageFormat f) {
       garis(),
       for (final it in t.items) ...[
         pw.Text(it.namaBarang, style: pw.TextStyle(fontSize: fs)),
-        baris('  ${angka(it.qty)} ${it.satuan} x ${angka(it.harga)}', angka(it.subtotal)),
+        baris(
+          '  ${angka(it.qty)} ${it.satuan} x ${angka(it.harga)}${it.diskon > 0 ? ' -${persen(it.diskon)}' : ''}',
+          angka(it.subtotal),
+        ),
       ],
       garis(),
+      if (t.adaDiskon) ...[
+        baris('Subtotal', angka(t.subtotal + t.diskonBarang)),
+        if (t.diskonBarang > 0) baris('Diskon barang', '-${angka(t.diskonBarang)}'),
+        if (t.diskon > 0) baris('Diskon faktur', '-${angka(t.diskon)}'),
+      ],
       baris('TOTAL', rupiah(t.total), tebal: true),
       baris('Status', t.status),
       if (cfg.tampilkanTerbilang) ...[

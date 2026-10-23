@@ -210,6 +210,7 @@ class _LaporanTransaksiPageState extends State<LaporanTransaksiPage> {
     }.toList()
       ..sort();
     final total = data.fold<double>(0, (a, t) => a + t.total);
+    final diskon = data.fold<double>(0, (a, t) => a + t.totalDiskon);
     final lunas = data.where((t) => t.lunas).fold<double>(0, (a, t) => a + t.total);
     final labelPihak = pj ? 'Pelanggan' : 'Supplier';
 
@@ -238,12 +239,21 @@ class _LaporanTransaksiPageState extends State<LaporanTransaksiPage> {
                     'Periode ${tglBulan(rentang.start)} – ${tglBulan(rentang.end)}'
                     '${status == 'Semua' ? '' : ' · Status $status'}'
                     '${daerah == 'Semua Daerah' ? '' : ' · Daerah $daerah'}',
-                header: ['Tanggal', 'No. Faktur', labelPihak, 'Daerah', 'Jumlah Item', 'Total', 'Status'],
+                header: ['Tanggal', 'No. Faktur', labelPihak, 'Daerah', 'Jumlah Item', 'Diskon', 'Total', 'Status'],
                 rows: [
                   for (final t in data)
-                    [tgl(t.tanggal), t.kode, t.pihak, s.daerahTransaksi(t, penjualan: pj), t.items.length, t.total, t.status],
+                    [
+                      tgl(t.tanggal),
+                      t.kode,
+                      t.pihak,
+                      s.daerahTransaksi(t, penjualan: pj),
+                      t.items.length,
+                      t.totalDiskon,
+                      t.total,
+                      t.status,
+                    ],
                 ],
-                format: const {4: FormatKolom.angka, 5: FormatKolom.rupiah},
+                format: const {4: FormatKolom.angka, 5: FormatKolom.rupiah, 6: FormatKolom.rupiah},
               ),
             ),
           ],
@@ -280,6 +290,7 @@ class _LaporanTransaksiPageState extends State<LaporanTransaksiPage> {
             StatTile(
               label: 'Total ${pj ? 'Penjualan' : 'Pembelian'}',
               value: rupiah(total),
+              note: diskon > 0 ? 'Diskon ${pj ? 'diberikan' : 'diterima'} ${rupiah(diskon)}' : null,
               icon: Icons.payments_outlined,
             ),
             StatTile(label: 'Sudah Lunas', value: rupiah(lunas), icon: Icons.check_circle_outline),
@@ -305,6 +316,7 @@ class _LaporanTransaksiPageState extends State<LaporanTransaksiPage> {
                 kol('Tanggal'),
                 kol('Kode'),
                 kol(labelPihak),
+                if (diskon > 0) kol('Diskon', angka: true),
                 kol('Total', angka: true),
                 kol('Status'),
               ],
@@ -316,6 +328,9 @@ class _LaporanTransaksiPageState extends State<LaporanTransaksiPage> {
                       sel(tgl(t.tanggal)),
                       sel(t.kode),
                       sel(t.pihak),
+                      if (diskon > 0)
+                        sel(t.adaDiskon ? '-${rupiah(t.totalDiskon)}' : '-',
+                            color: t.adaDiskon ? AppColors.orange : null),
                       sel(rupiah(t.total)),
                       DataCell(StatusBadge(t.status)),
                     ],

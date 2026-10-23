@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../auth/auth_service.dart';
 import '../data/app_state.dart';
 import '../models/models.dart';
 import '../theme.dart';
@@ -22,6 +23,8 @@ class _StokBarangPageState extends State<StokBarangPage> {
   @override
   Widget build(BuildContext context) {
     final s = AppScope.of(context);
+    // Sales hanya boleh melihat stok (tanpa tambah, sesuaikan, atau ubah barang).
+    final bolehUbah = AuthScope.of(context).bolehUbahBarang;
     final q = cari.toLowerCase();
     final data = s.barang
         .where((b) =>
@@ -36,15 +39,38 @@ class _StokBarangPageState extends State<StokBarangPage> {
       children: [
         PageHeader(
           title: 'Stok Barang',
-          subtitle: 'Pantau jumlah stok, tambah barang baru, dan lakukan penyesuaian (stock opname)',
+          subtitle: bolehUbah
+              ? 'Pantau jumlah stok, tambah barang baru, dan lakukan penyesuaian (stock opname)'
+              : 'Pantau jumlah stok barang yang tersedia',
           actions: [
-            FilledButton.icon(
-              onPressed: () => showDialog(context: context, builder: (_) => const BarangFormDialog()),
-              icon: const Icon(Icons.add),
-              label: const Text('Tambah Barang'),
-            ),
+            if (bolehUbah)
+              FilledButton.icon(
+                onPressed: () => showDialog(context: context, builder: (_) => const BarangFormDialog()),
+                icon: const Icon(Icons.add),
+                label: const Text('Tambah Barang'),
+              ),
           ],
         ),
+        if (!bolehUbah)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(children: [
+              Icon(Icons.visibility_outlined, color: AppColors.blue, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Mode lihat saja: jumlah stok dan harga hanya dapat diubah oleh Admin atau Owner.',
+                  style: TextStyle(color: Color(0xFF1E40AF)),
+                ),
+              ),
+            ]),
+          ),
         ResponsiveGrid(children: [
           StatTile(
             label: 'Jenis Barang',
@@ -105,7 +131,7 @@ class _StokBarangPageState extends State<StokBarangPage> {
                   kol('Min. Stok', angka: true),
                   kol('Satuan'),
                   kol('Status'),
-                  kol('Aksi'),
+                  if (bolehUbah) kol('Aksi'),
                 ],
                 jumlah: data.length,
                 baris: (i) {
@@ -120,7 +146,7 @@ class _StokBarangPageState extends State<StokBarangPage> {
                     sel('${b.minStok}'),
                     sel(b.satuan),
                     DataCell(StatusBadge(b.statusStok)),
-                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (bolehUbah) DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                       TextButton.icon(
                         onPressed: () => showDialog(context: context, builder: (_) => _PenyesuaianDialog(b: b)),
                         icon: const Icon(Icons.tune, size: 18),

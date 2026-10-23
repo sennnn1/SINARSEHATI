@@ -11,8 +11,10 @@ create table if not exists public.transaksi (
   diubah_pada timestamptz not null default now()
 );
 
--- Untuk tabel yang dibuat sebelum kolom daerah ada.
+-- Untuk tabel yang dibuat sebelum kolom daerah / diskon ada.
 alter table public.transaksi add column if not exists daerah text not null default '';
+-- Potongan seluruh faktur dalam rupiah (di luar diskon per barang).
+alter table public.transaksi add column if not exists diskon numeric(14, 2) not null default 0;
 
 create index if not exists transaksi_jenis_tanggal_idx on public.transaksi (jenis, tanggal);
 
@@ -27,6 +29,9 @@ create table if not exists public.transaksi_item (
   harga          numeric(14, 2) not null,
   harga_pokok    numeric(14, 2) not null default 0   -- harga beli saat dijual (untuk laba kotor)
 );
+
+-- Diskon per barang dalam persen (0-100).
+alter table public.transaksi_item add column if not exists diskon numeric(5, 2) not null default 0;
 
 create index if not exists transaksi_item_kode_idx on public.transaksi_item (kode_transaksi);
 
@@ -72,11 +77,36 @@ drop policy if exists "mutasi_stok_akses" on public.mutasi_stok;
 create policy "mutasi_stok_akses" on public.mutasi_stok
   for all to authenticated using (true) with check (true);
 
+-- ------------------------------------------------------------ peran_saya
+-- Role pengguna yang login (Owner/Admin/Sales); null kalau akun belum aktif.
+-- plpgsql supaya boleh dibuat sebelum tabel pengguna (pengguna.sql) ada.
+create or replace function public.peran_saya()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v text;
+begin
+  select role into v from public.pengguna where id = auth.uid() and aktif;
+  return v;
+end $$;
+
+revoke all on function public.peran_saya() from public;
+grant execute on function public.peran_saya() to authenticated;
+
 -- ------------------------------------------------------- simpan_transaksi
--- p_items: [{"kode_barang": "...", "nama_barang": "...", "satuan": "...", "qty": 1, "harga": 1000}, ...]
+-- p_items: [{"kode_barang": "...", "nama_barang": "...", "satuan": "...", "qty": 1, "harga": 1000,
+--            "diskon": 5}, ...]   (diskon = persen per barang)
+-- p_diskon: potongan seluruh faktur dalam rupiah.
 -- Mengembalikan nomor faktur yang dibuat.
--- Versi lama (tanpa p_daerah) dihapus supaya tidak ada dua fungsi bernama sama.
+-- security definer: Sales boleh menjual (stok berkurang) walaupun tidak boleh
+-- mengubah tabel barang secara langsung (lihat pengguna.sql).
+-- Versi lama dihapus supaya tidak ada dua fungsi bernama sama.
 drop function if exists public.simpan_transaksi(text, date, text, text, text, jsonb);
+drop function if exists public.simpan_transaksi(text, date, text, text, text, jsonb, text);
 create or replace function public.simpan_transaksi(
   p_jenis   text,
   p_tanggal date,
@@ -84,9 +114,13 @@ create or replace function public.simpan_transaksi(
   p_status  text,
   p_catatan text,
   p_items   jsonb,
-  p_daerah  text default ''
+  p_daerah  text default '',
+  p_diskon  numeric default 0
 ) returns text
-language plpgsql as $$
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
   v_prefix text := case p_jenis when 'penjualan' then 'PJ' when 'pembelian' then 'PB' end;
   v_kode   text;
@@ -94,7 +128,10 @@ declare
   v_it     jsonb;
   v_qty    integer;
   v_harga  numeric;
+  v_diskon numeric;
+  v_bersih numeric;
   v_pokok  numeric;
+  v_peran  text := public.peran_saya();
   v_stok   integer;
   r        record;
   b        public.barang;
@@ -104,6 +141,15 @@ begin
   end if;
   if p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'Tambahkan minimal satu barang.';
+  end if;
+  if v_peran is null then
+    raise exception 'Akun Anda belum aktif.';
+  end if;
+  if v_peran = 'Sales' and p_jenis <> 'penjualan' then
+    raise exception 'Sales tidak boleh mencatat pembelian.';
+  end if;
+  if coalesce(p_diskon, 0) < 0 then
+    raise exception 'Diskon tidak boleh negatif.';
   end if;
 
   -- Cek semua barang ada dan (untuk penjualan) stok cukup, sekaligus mengunci
@@ -129,28 +175,38 @@ begin
   where jenis = p_jenis and kode ~ ('^' || v_prefix || '[0-9]+$');
   v_kode := v_prefix || lpad(v_n::text, 5, '0');
 
-  insert into public.transaksi (kode, jenis, tanggal, pihak, status, catatan, daerah)
-  values (v_kode, p_jenis, p_tanggal, p_pihak, p_status, coalesce(p_catatan, ''), coalesce(p_daerah, ''));
+  insert into public.transaksi (kode, jenis, tanggal, pihak, status, catatan, daerah, diskon)
+  values (v_kode, p_jenis, p_tanggal, p_pihak, p_status, coalesce(p_catatan, ''), coalesce(p_daerah, ''),
+          coalesce(p_diskon, 0));
 
   for i in 0 .. jsonb_array_length(p_items) - 1 loop
     v_it    := p_items -> i;
     v_qty   := (v_it->>'qty')::int;
     v_harga := (v_it->>'harga')::numeric;
+    v_diskon := coalesce((v_it->>'diskon')::numeric, 0);
+    if v_diskon < 0 or v_diskon > 100 then
+      raise exception 'Diskon barang harus 0 sampai 100 persen.';
+    end if;
     select * into b from public.barang where kode = v_it->>'kode_barang';
-    v_pokok := case when p_jenis = 'penjualan' then b.harga_beli else v_harga end;
+    -- Sales tidak boleh mengubah harga: selalu pakai harga jual dari data barang.
+    if v_peran = 'Sales' then
+      v_harga := b.harga_jual;
+    end if;
+    v_bersih := v_harga * (1 - v_diskon / 100);
+    v_pokok := case when p_jenis = 'penjualan' then b.harga_beli else v_bersih end;
 
     insert into public.transaksi_item
-      (kode_transaksi, urutan, kode_barang, nama_barang, satuan, qty, harga, harga_pokok)
+      (kode_transaksi, urutan, kode_barang, nama_barang, satuan, qty, harga, diskon, harga_pokok)
     values
       (v_kode, i, b.kode, coalesce(v_it->>'nama_barang', b.nama), coalesce(v_it->>'satuan', b.satuan),
-       v_qty, v_harga, v_pokok);
+       v_qty, v_harga, v_diskon, v_pokok);
 
     if p_jenis = 'penjualan' then
       update public.barang set stok = greatest(0, stok - v_qty)
       where kode = b.kode returning stok into v_stok;
     else
-      -- Pembelian menambah stok dan memperbarui harga beli terakhir.
-      update public.barang set stok = stok + v_qty, harga_beli = v_harga
+      -- Pembelian menambah stok dan memperbarui harga beli terakhir (setelah diskon).
+      update public.barang set stok = stok + v_qty, harga_beli = v_bersih
       where kode = b.kode returning stok into v_stok;
     end if;
 
@@ -167,13 +223,19 @@ end $$;
 -- Menghapus transaksi dan mengembalikan stok seperti semula.
 create or replace function public.hapus_transaksi(p_kode text)
 returns void
-language plpgsql as $$
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
   t      public.transaksi;
   it     public.transaksi_item;
   v_ubah integer;
   v_stok integer;
 begin
+  if public.peran_saya() is null then
+    raise exception 'Akun Anda belum aktif.';
+  end if;
   select * into t from public.transaksi where kode = p_kode for update;
   if not found then
     raise exception 'Transaksi % tidak ditemukan', p_kode;
@@ -194,13 +256,20 @@ end $$;
 
 -- --------------------------------------------------------- sesuaikan_stok
 -- Penyesuaian stok manual (stock opname) beserta catatan di kartu stok.
+-- Hanya Owner & Admin; Sales hanya boleh melihat stok.
 create or replace function public.sesuaikan_stok(p_kode text, p_stok integer, p_keterangan text)
 returns void
-language plpgsql as $$
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
   b public.barang;
   v_baru integer := greatest(0, p_stok);
 begin
+  if coalesce(public.peran_saya(), '') not in ('Owner', 'Admin') then
+    raise exception 'Hanya Owner atau Admin yang boleh mengubah stok.';
+  end if;
   select * into b from public.barang where kode = p_kode for update;
   if not found then
     raise exception 'Barang % tidak ditemukan', p_kode;

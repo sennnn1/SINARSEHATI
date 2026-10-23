@@ -49,6 +49,10 @@ abstract class AuthService extends ChangeNotifier {
   });
 
   Future<void> logout();
+
+  /// Sales hanya boleh melihat stok: tidak boleh mengubah jumlah stok, data
+  /// barang, maupun harga (saat menjual selalu memakai harga jual barang).
+  bool get bolehUbahBarang => user != null && user!.role != 'Sales';
 }
 
 /// Menyediakan [AuthService] ke seluruh widget.

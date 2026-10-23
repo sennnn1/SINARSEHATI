@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../auth/auth_service.dart';
 import '../data/app_state.dart';
 import '../faktur/faktur_page.dart';
 import '../models/models.dart';
@@ -216,18 +218,27 @@ class _TransaksiPageState extends State<TransaksiPage> {
   }
 }
 
+/// Angka persen boleh memakai koma, mis. "2,5" (bukan pemisah ribuan).
+double parsePersen(String s) => double.tryParse(s.replaceAll(',', '.').trim()) ?? 0;
+
+/// Input persen: angka dengan satu koma/titik desimal.
+final _formatPersen = [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}([.,]\d{0,2})?'))];
+
 class _BarisItem {
   String? kode;
   final qty = TextEditingController(text: '1');
   final harga = TextEditingController();
+  final diskon = TextEditingController();
 
   int get q => int.tryParse(qty.text) ?? 0;
   double get h => parseAngka(harga.text);
-  double get subtotal => q * h;
+  double get d => parsePersen(diskon.text);
+  double get subtotal => q * h * (1 - d.clamp(0, 100) / 100);
 
   void dispose() {
     qty.dispose();
     harga.dispose();
+    diskon.dispose();
   }
 }
 
@@ -246,6 +257,10 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
   String status = 'Lunas';
   final catatan = TextEditingController();
   final daerah = TextEditingController();
+  final diskonFaktur = TextEditingController();
+
+  /// Diskon faktur diisi dalam persen ('%') atau rupiah ('Rp').
+  String modeDiskon = '%';
   final rows = <_BarisItem>[_BarisItem()];
   String? error;
   bool menyimpan = false;
@@ -259,6 +274,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
     }
     catatan.dispose();
     daerah.dispose();
+    diskonFaktur.dispose();
     super.dispose();
   }
 
@@ -270,7 +286,12 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
     // Layar sempit (HP): kolom isian memenuhi lebar dialog, bukan lebar tetap.
     final sempit = MediaQuery.sizeOf(context).width < 600;
     double lebar(double w) => sempit ? double.infinity : w;
-    final total = rows.fold<double>(0, (a, r) => a + r.subtotal);
+    final subtotal = rows.fold<double>(0, (a, r) => a + r.subtotal);
+    final potongan = _potongan(subtotal);
+    final total = subtotal - potongan;
+    final bruto = rows.fold<double>(0, (a, r) => a + r.q * r.h);
+    final hemat = bruto - total;
+    final bolehUbahHarga = AuthScope.of(context).bolehUbahBarang;
 
     return FormDialog(
       // Dengan database, nomor final dibuat saat disimpan (bisa beda kalau ada
@@ -283,8 +304,17 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       labelSimpan: 'Simpan & Cetak',
       ikonSimpan: Icons.print_outlined,
       onSave: () => _simpan(s, kode),
-      footer: Text('Total: ${rupiah(total)}',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.green)),
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hemat > 0)
+            Text('Subtotal ${rupiah(bruto)} · Diskon −${rupiah(hemat)}',
+                style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+          Text('Total: ${rupiah(total)}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.brand)),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -349,8 +379,51 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
           const Text('Daftar Barang', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           // Baris kosong baru muncul otomatis setelah barang di baris terakhir dipilih.
-          for (final (i, r) in rows.indexed) _baris(s, i, r),
+          for (final (i, r) in rows.indexed) _baris(s, i, r, bolehUbahHarga),
+          if (!bolehUbahHarga)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Icon(Icons.lock_outline, size: 15, color: AppColors.muted),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text('Harga mengikuti harga jual di data barang dan tidak dapat diubah oleh Sales.',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                ),
+              ]),
+            ),
           const SizedBox(height: 8),
+          Wrap(spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            SizedBox(
+              width: lebar(240),
+              child: TextField(
+                controller: diskonFaktur,
+                inputFormatters: modeDiskon == '%' ? _formatPersen : hanyaAngka,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Diskon Faktur',
+                  hintText: 'opsional',
+                  prefixText: modeDiskon == 'Rp' ? 'Rp ' : null,
+                  suffixText: modeDiskon == '%' ? '%' : null,
+                  helperText: potongan > 0 ? 'Potongan ${rupiah(potongan)}' : null,
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: '%', label: Text('%')),
+                ButtonSegment(value: 'Rp', label: Text('Rp')),
+              ],
+              selected: {modeDiskon},
+              onSelectionChanged: (v) => setState(() {
+                modeDiskon = v.first;
+                diskonFaktur.clear();
+              }),
+            ),
+          ]),
+          const SizedBox(height: 12),
           TextField(
             controller: catatan,
             decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
@@ -367,9 +440,17 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
     if (d.isNotEmpty) daerah.text = d;
   }
 
+  /// Potongan faktur dalam rupiah dari isian diskon faktur.
+  double _potongan(double subtotal) {
+    final n = modeDiskon == '%'
+        ? subtotal * parsePersen(diskonFaktur.text).clamp(0, 100) / 100
+        : parseAngka(diskonFaktur.text);
+    return n.clamp(0, subtotal).roundToDouble();
+  }
+
   static String _labelBarang(Barang b) => '${b.kode} — ${b.nama}';
 
-  Widget _baris(AppState s, int i, _BarisItem r) {
+  Widget _baris(AppState s, int i, _BarisItem r, bool bolehUbahHarga) {
     final b = r.kode == null ? null : s.cariBarang(r.kode!);
 
     // Kolom cari (bukan dropdown) supaya ribuan barang tidak dimuat
@@ -412,13 +493,31 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
     );
     final harga = TextField(
       controller: r.harga,
+      readOnly: !bolehUbahHarga,
       inputFormatters: hanyaAngka,
       keyboardType: TextInputType.number,
-      decoration: const InputDecoration(labelText: 'Harga', prefixText: 'Rp '),
+      decoration: InputDecoration(
+        labelText: 'Harga',
+        prefixText: 'Rp ',
+        fillColor: bolehUbahHarga ? null : AppColors.bg,
+        suffixIcon: bolehUbahHarga ? null : const Icon(Icons.lock_outline, size: 16),
+      ),
       onChanged: (_) => setState(() {}),
     );
-    final subtotal = Text(rupiah(r.subtotal),
-        textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600));
+    final diskon = TextField(
+      controller: r.diskon,
+      inputFormatters: _formatPersen,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: const InputDecoration(labelText: 'Disc', suffixText: '%', hintText: '0'),
+      onChanged: (_) => setState(() {}),
+    );
+    final subtotal = Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      Text(rupiah(r.subtotal), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
+      if (r.d > 0 && r.q * r.h > 0)
+        Text(rupiah(r.q * r.h),
+            style: const TextStyle(
+                color: AppColors.muted, fontSize: 11.5, decoration: TextDecoration.lineThrough)),
+    ]);
     final hapus = IconButton(
       tooltip: 'Hapus baris',
       // Baris kosong terakhir (tempat mengisi barang berikutnya) tidak perlu dihapus.
@@ -435,7 +534,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       key: ObjectKey(r),
       padding: const EdgeInsets.only(bottom: 10),
       child: LayoutBuilder(builder: (context, c) {
-        // Layar sempit: barang di atas, lalu qty + harga, lalu subtotal + hapus.
+        // Layar sempit: barang di atas, lalu qty + harga, lalu diskon + subtotal + hapus.
         if (c.maxWidth < 600) {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             barang,
@@ -445,8 +544,10 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
               const SizedBox(width: 8),
               Expanded(child: harga),
             ]),
+            const SizedBox(height: 10),
             Row(children: [
-              const Text('Subtotal  ', style: TextStyle(color: AppColors.muted)),
+              SizedBox(width: 90, child: diskon),
+              const SizedBox(width: 12),
               Expanded(child: subtotal),
               hapus,
             ]),
@@ -455,13 +556,15 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 6, child: barang),
+            Expanded(flex: 5, child: barang),
             const SizedBox(width: 8),
-            Expanded(flex: 2, child: qty),
+            Expanded(flex: 3, child: qty),
             const SizedBox(width: 8),
             Expanded(flex: 3, child: harga),
             const SizedBox(width: 8),
-            Expanded(flex: 3, child: Padding(padding: const EdgeInsets.only(top: 14), child: subtotal)),
+            Expanded(flex: 2, child: diskon),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: Padding(padding: const EdgeInsets.only(top: 12), child: subtotal)),
             hapus,
           ],
         );
@@ -470,6 +573,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
   }
 
   Future<void> _simpan(AppState s, String kode) async {
+    final bolehUbahHarga = AuthScope.read(context).bolehUbahBarang;
     String? err;
     final items = <ItemTransaksi>[];
     if (pihak == null) err = 'Pilih ${pj ? 'pelanggan' : 'supplier'} terlebih dahulu.';
@@ -477,18 +581,29 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       if (r.kode == null) continue;
       final b = s.cariBarang(r.kode!);
       if (b == null) continue;
+      // Sales selalu memakai harga jual dari data barang.
+      final harga = bolehUbahHarga ? r.h : b.hargaJual;
       if (r.q <= 0) err ??= 'Jumlah ${b.nama} harus lebih dari 0.';
-      if (r.h <= 0) err ??= 'Harga ${b.nama} belum diisi.';
+      if (harga <= 0) err ??= 'Harga ${b.nama} belum diisi.';
+      if (r.d > 100) err ??= 'Diskon ${b.nama} tidak boleh lebih dari 100%.';
       items.add(ItemTransaksi(
         kodeBarang: b.kode,
         namaBarang: b.nama,
         satuan: b.satuan,
         qty: r.q,
-        harga: r.h,
+        harga: harga,
+        diskon: r.d,
         hargaPokok: b.hargaBeli,
       ));
     }
     if (items.isEmpty) err ??= 'Tambahkan minimal satu barang.';
+    final subtotal = items.fold<double>(0, (a, i) => a + i.subtotal);
+    if (modeDiskon == '%' && parsePersen(diskonFaktur.text) > 100) {
+      err ??= 'Diskon faktur tidak boleh lebih dari 100%.';
+    }
+    if (modeDiskon == 'Rp' && parseAngka(diskonFaktur.text) > subtotal) {
+      err ??= 'Diskon faktur melebihi subtotal (${rupiah(subtotal)}).';
+    }
     if (err != null) {
       setState(() => error = err);
       return;
@@ -502,6 +617,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       status: status,
       catatan: catatan.text.trim(),
       daerah: s.rapikanDaerah(daerah.text),
+      diskon: _potongan(subtotal),
     );
     setState(() {
       menyimpan = true;
@@ -535,6 +651,15 @@ class DetailTransaksiDialog extends StatelessWidget {
             v,
           ]),
         );
+    Widget ringkas(String k, String v) => Padding(
+          padding: const EdgeInsets.only(bottom: 2),
+          child: Row(children: [
+            const Spacer(),
+            Text('$k  ', style: const TextStyle(color: AppColors.muted)),
+            Text(v),
+          ]),
+        );
+    final adaDiskonBarang = t.items.any((i) => i.diskon > 0);
     return AlertDialog(
       title: Text('Detail ${t.kode}'),
       content: SizedBox(
@@ -556,6 +681,7 @@ class DetailTransaksiDialog extends StatelessWidget {
                   kol('Nama Barang'),
                   kol('Qty', angka: true),
                   kol('Harga', angka: true),
+                  if (adaDiskonBarang) kol('Disc', angka: true),
                   kol('Subtotal', angka: true),
                 ],
                 rows: [
@@ -565,11 +691,17 @@ class DetailTransaksiDialog extends StatelessWidget {
                       sel(i.namaBarang),
                       sel('${i.qty} ${i.satuan}'),
                       sel(rupiah(i.harga)),
+                      if (adaDiskonBarang) sel(i.diskon > 0 ? persen(i.diskon) : '-'),
                       sel(rupiah(i.subtotal)),
                     ]),
                 ],
               ),
               const Divider(),
+              if (t.adaDiskon) ...[
+                ringkas('Subtotal', rupiah(t.subtotal + t.diskonBarang)),
+                if (t.diskonBarang > 0) ringkas('Diskon barang', '−${rupiah(t.diskonBarang)}'),
+                if (t.diskon > 0) ringkas('Diskon faktur', '−${rupiah(t.diskon)}'),
+              ],
               Row(children: [
                 const Spacer(),
                 const Text('Total  ', style: TextStyle(fontWeight: FontWeight.w600)),

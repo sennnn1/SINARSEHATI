@@ -41,5 +41,5 @@ drop policy if exists "barang_baca" on public.barang;
 drop policy if exists "barang_tulis" on public.barang;
 create policy "barang_baca" on public.barang
   for select to authenticated using (true);
-create policy "barang_tulis" on public.barang
-  for all to authenticated using (true) with check (true);
+-- Policy tambah/ubah/hapus (hanya Owner & Admin) ada di pengguna.sql karena
+-- butuh tabel pengguna; sebelum itu dijalankan, barang hanya bisa dibaca.

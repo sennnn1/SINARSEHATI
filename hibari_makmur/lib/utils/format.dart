@@ -27,6 +27,13 @@ String angka(num v) {
 /// 12450000 -> "Rp 12.450.000"
 String rupiah(num v) => v < 0 ? '-Rp ${angka(-v)}' : 'Rp ${angka(v)}';
 
+/// 5 -> "5%", 2.5 -> "2,5%"
+String persen(num v) {
+  if (v == v.roundToDouble()) return '${v.round()}%';
+  final s = v.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
+  return '${s.replaceAll('.', ',')}%';
+}
+
 /// "12.450.000" / "12450000" -> 12450000
 double parseAngka(String s) =>
     double.tryParse(s.replaceAll('.', '').replaceAll(',', '.').trim()) ?? 0;
