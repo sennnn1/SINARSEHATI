@@ -161,6 +161,7 @@ class _HomeShellState extends State<HomeShell> {
                       },
                       onBuka: _buka,
                     ),
+                    const _BannerErrorSinkron(),
                     Expanded(
                       child: Stack(
                         children: [
@@ -188,6 +189,37 @@ class _HomeShellState extends State<HomeShell> {
         ),
       );
     });
+  }
+}
+
+/// Peringatan kalau perubahan (mis. data barang) gagal disimpan ke Supabase,
+/// supaya tidak hilang diam-diam saat data dimuat ulang.
+class _BannerErrorSinkron extends StatelessWidget {
+  const _BannerErrorSinkron();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppScope.of(context);
+    final pesan = s.errorSinkron;
+    if (pesan == null) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF2F2),
+        border: Border(bottom: BorderSide(color: Color(0xFFFECACA))),
+      ),
+      child: Row(children: [
+        const Icon(Icons.cloud_off_outlined, color: AppColors.red, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text(pesan, style: const TextStyle(color: Color(0xFFB91C1C)))),
+        IconButton(
+          tooltip: 'Tutup',
+          onPressed: s.tutupErrorSinkron,
+          icon: const Icon(Icons.close, size: 18, color: AppColors.red),
+        ),
+      ]),
+    );
   }
 }
 

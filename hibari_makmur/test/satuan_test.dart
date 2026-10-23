@@ -136,4 +136,50 @@ void main() {
     expect(it.harga, (hargaPcs * 50).roundToDouble());
     expect(b.stok, awal + 50);
   });
+
+  testWidgets('Gagal simpan ke Supabase tampil sebagai peringatan', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final state = AppState();
+    final auth = DemoAuthService(state, jeda: Duration.zero);
+    await auth.login(DemoAuthService.emailDemo, DemoAuthService.passwordDemo);
+    await tester.pumpWidget(SinarSehatiApp(state: state, auth: auth));
+    await tester.pumpAndSettle();
+
+    state
+      ..errorSinkron = 'Perubahan terakhir gagal disimpan ke Supabase: kolom isi_dus tidak ada'
+      ..notifyListeners();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('gagal disimpan ke Supabase'), findsOneWidget);
+    await tester.tap(find.byTooltip('Tutup'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('gagal disimpan ke Supabase'), findsNothing);
+  });
+
+  testWidgets('Stok bisa diubah dari tombol pensil dan tercatat di mutasi', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final state = AppState();
+    final auth = DemoAuthService(state, jeda: Duration.zero);
+    await auth.login(DemoAuthService.emailDemo, DemoAuthService.passwordDemo);
+    await tester.pumpWidget(SinarSehatiApp(state: state, auth: auth));
+    await tester.pumpAndSettle();
+
+    tester.widget<ShellNav>(find.byType(ShellNav)).buka('Stok Barang');
+    await tester.pumpAndSettle();
+    final b = state.barang.reduce((a, c) => a.kode.compareTo(c.kode) <= 0 ? a : c);
+    final awal = b.stok;
+    await tester.ensureVisible(find.byTooltip('Ubah data barang').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ubah data barang').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Stok'), '${awal + 36}');
+    await tester.tap(find.text('Simpan'));
+    await tester.pumpAndSettle();
+    expect(state.cariBarang(b.kode)!.stok, awal + 36);
+    expect(state.mutasi.first.perubahan, 36);
+    expect(state.mutasi.first.keterangan, 'Ubah data barang');
+  });
 }

@@ -190,10 +190,15 @@ class AppState extends ChangeNotifier {
 
   void _tangkapError(Future<void> f) {
     f.catchError((Object e) {
-      errorSinkron = 'Gagal menyimpan ke Supabase: $e';
-      debugPrint(errorSinkron);
+      errorSinkron = 'Perubahan terakhir gagal disimpan ke Supabase: ${pesanErrorDb(e)}';
+      debugPrint('$errorSinkron ($e)');
       notifyListeners();
     });
+  }
+
+  void tutupErrorSinkron() {
+    errorSinkron = null;
+    notifyListeners();
   }
 
   // ---------------------------------------------------------------- Barang
@@ -212,14 +217,27 @@ class AppState extends ChangeNotifier {
 
   double get nilaiStok => barang.fold(0, (s, b) => s + b.nilaiStok);
 
-  void simpanBarang(Barang b, {String? kodeLama}) {
+  /// Menyimpan data barang. Kalau [stokBaru] diisi dan berbeda dari stok
+  /// sekarang, stok ikut diubah dan dicatat di kartu stok sebagai penyesuaian.
+  void simpanBarang(Barang b, {String? kodeLama, int? stokBaru}) {
     final i = barang.indexWhere((e) => e.kode == (kodeLama ?? b.kode));
     if (i >= 0) {
       barang[i] = b;
     } else {
       barang.add(b);
     }
-    _sinkron((r) => r.simpan(b, kodeLama: kodeLama));
+    final perubahan = stokBaru == null ? 0 : stokBaru - b.stok;
+    const ket = 'Ubah data barang';
+    final r = repo;
+    final t = transaksiRepo;
+    if (r != null) {
+      // Berurutan: data barang (mungkin ganti kode) dulu, baru stoknya.
+      _tangkapError(() async {
+        await r.simpan(b, kodeLama: kodeLama, baru: i < 0);
+        if (perubahan != 0 && t != null) await t.sesuaikanStok(b.kode, stokBaru!, ket);
+      }());
+    }
+    if (perubahan != 0) _ubahStok(b, perubahan, ket, DateTime.now(), sinkron: t == null);
     notifyListeners();
   }
 

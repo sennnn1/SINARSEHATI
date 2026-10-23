@@ -199,14 +199,15 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
           nama: nama.text.trim(),
           kategori: kategori,
           satuan: satuan,
-          stok: int.tryParse(stok.text) ?? 0,
+          // Barang lama: stok berubah lewat stokBaru di bawah supaya tercatat di kartu stok.
+          stok: edit ? widget.barang!.stok : int.tryParse(stok.text) ?? 0,
           minStok: int.tryParse(minStok.text) ?? 0,
           hargaBeli: parseAngka(beli.text),
           hargaJual: parseAngka(jual.text),
           isiKotak: int.tryParse(isiKotak.text) ?? 0,
           isiDus: int.tryParse(isiDus.text) ?? 0,
         );
-        s.simpanBarang(b, kodeLama: widget.barang?.kode);
+        s.simpanBarang(b, kodeLama: widget.barang?.kode, stokBaru: edit ? int.tryParse(stok.text) ?? 0 : null);
         Navigator.pop(context);
         toast(context, '${b.nama} tersimpan');
       },
@@ -274,11 +275,11 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
             dua(
               TextFormField(
                 controller: stok,
-                enabled: !edit,
                 inputFormatters: hanyaAngka,
                 decoration: InputDecoration(
-                  labelText: 'Stok Awal',
-                  helperText: edit ? 'Ubah stok lewat menu Stok Barang' : null,
+                  labelText: edit ? 'Stok' : 'Stok Awal',
+                  suffixText: satuan,
+                  helperText: edit ? 'Perubahan stok dicatat di riwayat mutasi' : null,
                 ),
               ),
               TextFormField(

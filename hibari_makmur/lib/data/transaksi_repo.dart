@@ -118,10 +118,10 @@ extension on String {
 /// Pesan error Supabase yang ramah untuk ditampilkan ke pengguna.
 String pesanErrorDb(Object e) {
   if (e is PostgrestException) {
-    // Fungsi atau tabel belum dibuat di Supabase.
-    if (e.code == 'PGRST202' || e.code == '42P01' || e.code == 'PGRST205') {
-      return 'Database belum diperbarui. Jalankan (ulang) supabase/transaksi.sql lalu pengguna.sql '
-          'di SQL Editor Supabase.';
+    // Fungsi, tabel, atau kolom belum dibuat di Supabase.
+    if (const {'PGRST202', 'PGRST204', 'PGRST205', '42P01', '42703'}.contains(e.code)) {
+      return 'Database belum diperbarui. Jalankan (ulang) supabase/transaksi.sql, pengguna.sql, '
+          'lalu satuan_barang.sql di SQL Editor Supabase.';
     }
     return e.message;
   }

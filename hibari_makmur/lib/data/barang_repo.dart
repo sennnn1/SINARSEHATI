@@ -24,11 +24,14 @@ class BarangRepo {
 
   /// Hanya kolom yang dikelola aplikasi; kolom asal Excel (grup, item,
   /// isi_pack, catatan, dll.) tidak ikut tertimpa.
-  Future<void> simpan(Barang b, {String? kodeLama}) async {
-    if (kodeLama != null && kodeLama != b.kode) {
-      await _tabel.update(_keMap(b)).eq('kode', kodeLama);
+  /// Stok hanya ditulis untuk barang [baru]; perubahan stok barang lama lewat
+  /// fungsi sesuaikan_stok supaya tercatat di kartu stok dan tidak menimpa stok
+  /// yang baru saja berubah karena transaksi kasir lain.
+  Future<void> simpan(Barang b, {String? kodeLama, bool baru = false}) async {
+    if (baru) {
+      await _tabel.insert({..._keMap(b), 'stok': b.stok});
     } else {
-      await _tabel.upsert(_keMap(b));
+      await _tabel.update(_keMap(b)).eq('kode', kodeLama ?? b.kode);
     }
   }
 
@@ -54,7 +57,6 @@ class BarangRepo {
         'nama': b.nama,
         'kategori': b.kategori,
         'satuan': b.satuan,
-        'stok': b.stok,
         'min_stok': b.minStok,
         'harga_beli': b.hargaBeli,
         'harga_jual': b.hargaJual,
