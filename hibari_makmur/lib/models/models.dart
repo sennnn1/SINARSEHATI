@@ -123,6 +123,9 @@ class ItemTransaksi {
   /// Jumlah dalam satuan dasar; inilah yang menambah / mengurangi stok.
   int get qtyDasar => qty * isi;
 
+  /// Harga per satuan dasar (per buah / per lusin), mis. harga per Dus ÷ 36.
+  double get hargaDasar => harga / isi;
+
   /// Diskon per barang dalam persen (0–100).
   final double diskon;
 

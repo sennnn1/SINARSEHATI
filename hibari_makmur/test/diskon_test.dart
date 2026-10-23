@@ -134,7 +134,7 @@ void main() {
 
     final b = state.barang.firstWhere((e) => e.stok > 5 && e.hargaJual > 0);
     await _isiFormPenjualan(tester, b);
-    final harga = tester.widget<TextField>(find.widgetWithText(TextField, 'Harga').first);
+    final harga = tester.widget<TextField>(find.widgetWithText(TextField, 'Harga / ${b.satuan}').first);
     expect(harga.readOnly, isTrue);
     await tester.enterText(find.widgetWithText(TextField, 'Disc').first, '5');
     await tester.tap(find.text('Simpan & Cetak'));

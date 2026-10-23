@@ -6,6 +6,7 @@ import 'package:hibari_makmur/faktur/faktur_pdf.dart';
 import 'package:hibari_makmur/main.dart';
 import 'package:hibari_makmur/models/models.dart';
 import 'package:hibari_makmur/shell.dart';
+import 'package:hibari_makmur/utils/format.dart';
 
 Barang _engsel(AppState s) => s.barang.firstWhere((b) => b.nama == 'Engsel Pintu');
 
@@ -124,8 +125,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Dus').last);
     await tester.pumpAndSettle();
-    expect(find.textContaining('1 Dus = 50 Pcs'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Harga / Dus'), findsOneWidget);
+    expect(find.textContaining('= 50 Pcs  (1 Dus = 50 Pcs)'), findsOneWidget);
+    // Harga tetap per Pcs; jumlah baris = 50 x harga per Pcs.
+    expect(find.widgetWithText(TextField, 'Harga / Pcs'), findsOneWidget);
+    expect(find.text(rupiah(hargaPcs * 50)), findsWidgets);
 
     await tester.tap(find.text('Simpan & Cetak'));
     await tester.pumpAndSettle();

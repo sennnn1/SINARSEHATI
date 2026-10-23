@@ -229,14 +229,21 @@ class _BarisItem {
 
   /// Satuan yang dipilih (mis. Dus); null = satuan dasar barang.
   String? satuan;
+
+  /// Isi satu [satuan] dalam satuan dasar, mis. 1 Dus = 36 Bh.
+  int isi = 1;
   final qty = TextEditingController(text: '1');
+
+  /// Harga selalu per satuan dasar (per buah / per lusin), walaupun qty dalam Dus.
   final harga = TextEditingController();
   final diskon = TextEditingController();
 
   int get q => int.tryParse(qty.text) ?? 0;
+  int get qDasar => q * isi;
   double get h => parseAngka(harga.text);
   double get d => parsePersen(diskon.text);
-  double get subtotal => q * h * (1 - d.clamp(0, 100) / 100);
+  double get bruto => qDasar * h;
+  double get subtotal => bruto * (1 - d.clamp(0, 100) / 100);
 
   void dispose() {
     qty.dispose();
@@ -292,7 +299,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
     final subtotal = rows.fold<double>(0, (a, r) => a + r.subtotal);
     final potongan = _potongan(subtotal);
     final total = subtotal - potongan;
-    final bruto = rows.fold<double>(0, (a, r) => a + r.q * r.h);
+    final bruto = rows.fold<double>(0, (a, r) => a + r.bruto);
     final hemat = bruto - total;
     final bolehUbahHarga = AuthScope.of(context).bolehUbahBarang;
 
@@ -471,6 +478,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       onSelected: (b) => setState(() {
         r.kode = b.kode;
         r.satuan = b.satuan;
+        r.isi = 1;
         r.harga.text = (pj ? b.hargaJual : b.hargaBeli).round().toString();
         if (identical(r, rows.last)) rows.add(_BarisItem());
       }),
@@ -505,9 +513,9 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
                 for (final st in b.satuanTersedia) DropdownMenuItem(value: st.nama, child: Text(st.nama)),
               ],
               onChanged: (v) => setState(() {
+                // Harga tetap per satuan dasar; jumlah = qty × isi × harga.
                 r.satuan = v;
-                // Harga ikut satuan: harga per satuan dasar × isi (mis. per Pcs × 50 = per Dus).
-                r.harga.text = ((pj ? b.hargaJual : b.hargaBeli) * b.isiSatuan(v!)).round().toString();
+                r.isi = b.isiSatuan(v!);
               }),
             ),
           );
@@ -520,7 +528,9 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
         suffixText: pilihSatuan == null ? b?.satuan : null,
         suffixIcon: pilihSatuan == null ? null : Padding(padding: const EdgeInsets.only(right: 8), child: pilihSatuan),
         suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        helperText: isi > 1 ? '${b!.keteranganIsi(satuan!)} · total ${angka(r.q * isi)} ${b.satuan}' : null,
+        // Langsung terlihat jumlah buahnya, mis. "= 36 Bh (1 Dus = 36 Bh)".
+        helperText: isi > 1 ? '= ${angka(r.qDasar)} ${b!.satuan}  (${b.keteranganIsi(satuan!)})' : null,
+        helperStyle: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w600),
         helperMaxLines: 2,
       ),
       onChanged: (_) => setState(() {}),
@@ -531,7 +541,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       inputFormatters: hanyaAngka,
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
-        labelText: isi > 1 ? 'Harga / $satuan' : 'Harga',
+        labelText: b == null ? 'Harga' : 'Harga / ${b.satuan}',
         prefixText: 'Rp ',
         fillColor: bolehUbahHarga ? null : AppColors.bg,
         suffixIcon: bolehUbahHarga ? null : const Icon(Icons.lock_outline, size: 16),
@@ -547,8 +557,8 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
     );
     final subtotal = Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
       Text(rupiah(r.subtotal), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
-      if (r.d > 0 && r.q * r.h > 0)
-        Text(rupiah(r.q * r.h),
+      if (r.d > 0 && r.bruto > 0)
+        Text(rupiah(r.bruto),
             style: const TextStyle(
                 color: AppColors.muted, fontSize: 11.5, decoration: TextDecoration.lineThrough)),
     ]);
@@ -616,8 +626,9 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       final b = s.cariBarang(r.kode!);
       if (b == null) continue;
       final isi = b.isiSatuan(r.satuan ?? b.satuan);
-      // Sales selalu memakai harga jual dari data barang (per Kotak/Dus = × isi).
-      final harga = bolehUbahHarga ? r.h : b.hargaJual * isi;
+      // Harga di form per satuan dasar; disimpan per satuan transaksi (mis. per Dus = × isi).
+      // Sales selalu memakai harga jual dari data barang.
+      final harga = (bolehUbahHarga ? r.h : b.hargaJual) * isi;
       if (r.q <= 0) err ??= 'Jumlah ${b.nama} harus lebih dari 0.';
       if (harga <= 0) err ??= 'Harga ${b.nama} belum diisi.';
       if (r.d > 100) err ??= 'Diskon ${b.nama} tidak boleh lebih dari 100%.';
@@ -717,7 +728,7 @@ class DetailTransaksiDialog extends StatelessWidget {
                   kol('Kode'),
                   kol('Nama Barang'),
                   kol('Qty', angka: true),
-                  kol('Harga', angka: true),
+                  kol('Harga Satuan', angka: true),
                   if (adaDiskonBarang) kol('Disc', angka: true),
                   kol('Subtotal', angka: true),
                 ],
@@ -727,7 +738,7 @@ class DetailTransaksiDialog extends StatelessWidget {
                       sel(i.kodeBarang),
                       sel(i.namaBarang),
                       sel(i.isi > 1 ? '${i.qty} ${i.satuan} (${angka(i.qtyDasar)} ${i.satuanDasar})' : '${i.qty} ${i.satuan}'),
-                      sel(rupiah(i.harga)),
+                      sel(rupiah(i.hargaDasar)),
                       if (adaDiskonBarang) sel(i.diskon > 0 ? persen(i.diskon) : '-'),
                       sel(rupiah(i.subtotal)),
                     ]),

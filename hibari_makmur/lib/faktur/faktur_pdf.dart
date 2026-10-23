@@ -118,6 +118,36 @@ Future<Uint8List> buatFakturPdf(DataFaktur d) async {
 List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
   final t = d.transaksi;
   final disc = t.items.any((i) => i.diskon > 0);
+  final adaIsi = t.items.any((i) => i.isi > 1);
+  const kiri = pw.Alignment.centerLeft, kanan = pw.Alignment.centerRight;
+  final kolom = <({String judul, pw.TableColumnWidth lebar, pw.Alignment rata, String Function(int, ItemTransaksi) isi})>[
+    (judul: 'No', lebar: const pw.FixedColumnWidth(22), rata: pw.Alignment.center, isi: (i, _) => '${i + 1}'),
+    (judul: 'Kode', lebar: const pw.FixedColumnWidth(54), rata: kiri, isi: (_, it) => it.kodeBarang),
+    (judul: 'Nama Barang', lebar: const pw.FlexColumnWidth(3), rata: kiri, isi: (_, it) => it.namaBarang),
+    (judul: 'Qty', lebar: const pw.FixedColumnWidth(30), rata: kanan, isi: (_, it) => angka(it.qty)),
+    (judul: 'Satuan', lebar: const pw.FixedColumnWidth(42), rata: kiri, isi: (_, it) => it.satuan),
+    if (adaIsi)
+      (
+        judul: 'Isi',
+        lebar: const pw.FixedColumnWidth(52),
+        rata: kanan,
+        isi: (_, it) => it.isi > 1 ? '${angka(it.qtyDasar)} ${it.satuanDasar}' : '-',
+      ),
+    (
+      judul: adaIsi ? 'Harga Satuan' : 'Harga',
+      lebar: const pw.FlexColumnWidth(1.3),
+      rata: kanan,
+      isi: (_, it) => angka(it.hargaDasar),
+    ),
+    if (disc)
+      (
+        judul: 'Disc',
+        lebar: const pw.FixedColumnWidth(34),
+        rata: kanan,
+        isi: (_, it) => it.diskon > 0 ? persen(it.diskon) : '-',
+      ),
+    (judul: 'Jumlah', lebar: const pw.FlexColumnWidth(1.5), rata: kanan, isi: (_, it) => angka(it.subtotal)),
+  ];
   final kecil = f.availableWidth < 140 * _mm; // A5
   final fs = kecil ? 8.0 : 9.5;
   final cfg = d.pengaturan;
@@ -238,21 +268,12 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
     ),
     pw.SizedBox(height: 10),
 
-    // Tabel barang (kolom Disc hanya muncul kalau ada diskon per barang)
+    // Tabel barang. Kolom Isi (mis. "36 Bh") hanya muncul kalau ada barang per Kotak/Dus,
+    // kolom Disc hanya kalau ada diskon per barang. Harga selalu per satuan dasar (per buah).
     pw.TableHelper.fromTextArray(
-      headers: ['No', 'Kode', 'Nama Barang', 'Qty', 'Satuan', 'Harga', if (disc) 'Disc', 'Jumlah'],
+      headers: [for (final k in kolom) k.judul],
       data: [
-        for (final (i, it) in t.items.indexed)
-          [
-            '${i + 1}',
-            it.kodeBarang,
-            _namaDenganIsi(it),
-            angka(it.qty),
-            it.satuan,
-            angka(it.harga),
-            if (disc) it.diskon > 0 ? persen(it.diskon) : '-',
-            angka(it.subtotal),
-          ],
+        for (final (i, it) in t.items.indexed) [for (final k in kolom) k.isi(i, it)],
       ],
       headerStyle: pw.TextStyle(fontSize: fs, fontWeight: pw.FontWeight.bold, color: hijau),
       headerDecoration: pw.BoxDecoration(
@@ -270,31 +291,10 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
         bottom: pw.BorderSide(color: garis),
         horizontalInside: pw.BorderSide(color: garis, width: mono ? 0.3 : 0.5),
       ),
-      columnWidths: {
-        0: const pw.FixedColumnWidth(22),
-        1: const pw.FixedColumnWidth(54),
-        2: const pw.FlexColumnWidth(3),
-        3: const pw.FixedColumnWidth(30),
-        4: const pw.FixedColumnWidth(48),
-        5: const pw.FlexColumnWidth(1.3),
-        6: disc ? const pw.FixedColumnWidth(34) : const pw.FlexColumnWidth(1.5),
-        if (disc) 7: const pw.FlexColumnWidth(1.5),
-      },
-      cellAlignments: {
-        0: pw.Alignment.center,
-        3: pw.Alignment.centerRight,
-        5: pw.Alignment.centerRight,
-        6: pw.Alignment.centerRight,
-        if (disc) 7: pw.Alignment.centerRight,
-      },
+      columnWidths: {for (final (i, k) in kolom.indexed) i: k.lebar},
+      cellAlignments: {for (final (i, k) in kolom.indexed) i: k.rata},
       headerAlignments: {
-        1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerLeft,
-        4: pw.Alignment.centerLeft,
-        3: pw.Alignment.centerRight,
-        5: pw.Alignment.centerRight,
-        6: pw.Alignment.centerRight,
-        if (disc) 7: pw.Alignment.centerRight,
+        for (final (i, k) in kolom.indexed) i: k.rata == pw.Alignment.center ? pw.Alignment.centerLeft : k.rata,
       },
     ),
     pw.SizedBox(height: 6),
@@ -478,9 +478,11 @@ pw.Widget _struk(DataFaktur d, String? logo, PdfPageFormat f) {
       if (d.dicetakOleh.isNotEmpty) baris('Kasir', d.dicetakOleh),
       garis(),
       for (final it in t.items) ...[
-        pw.Text(_namaDenganIsi(it), style: pw.TextStyle(fontSize: fs)),
+        pw.Text(it.namaBarang, style: pw.TextStyle(fontSize: fs)),
         baris(
-          '  ${angka(it.qty)} ${it.satuan} x ${angka(it.harga)}${it.diskon > 0 ? ' -${persen(it.diskon)}' : ''}',
+          // Mis. "1 Dus (36 Bh) x 23.500"
+          '  ${angka(it.qty)} ${it.satuan}${it.isi > 1 ? ' (${angka(it.qtyDasar)} ${it.satuanDasar})' : ''}'
+              ' x ${angka(it.hargaDasar)}${it.diskon > 0 ? ' -${persen(it.diskon)}' : ''}',
           angka(it.subtotal),
         ),
       ],
@@ -509,13 +511,6 @@ pw.Widget _struk(DataFaktur d, String? logo, PdfPageFormat f) {
     ],
   );
 }
-
-/// Nama barang + isi kalau dibeli/dijual per Kotak/Dus, mis. "Engsel (isi 50 Pcs)".
-String _namaDenganIsi(ItemTransaksi it) =>
-    it.isi > 1
-        ? '${it.namaBarang} (1 ${it.satuan} = ${angka(it.isi)} ${it.satuanDasar}'
-            '${it.satuanDasar == 'Lusin' ? ' / ${angka(it.isi * 12)} Bh' : ''})'
-        : it.namaBarang;
 
 /// Alamat pelanggan/supplier ditambah daerah transaksi (kalau belum tertulis di alamat).
 String _alamatLengkap(DataFaktur d) {
