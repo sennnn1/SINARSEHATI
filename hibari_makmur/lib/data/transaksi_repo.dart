@@ -46,6 +46,7 @@ class TransaksiRepo {
             'nama_barang': i.namaBarang,
             'satuan': i.satuan,
             'qty': i.qty,
+            'isi': i.isi,
             'harga': i.harga,
             'diskon': i.diskon,
           },
@@ -101,6 +102,8 @@ class TransaksiRepo {
             qty: i['qty'] as int,
             harga: (i['harga'] as num).toDouble(),
             diskon: (i['diskon'] as num?)?.toDouble() ?? 0,
+            isi: (i['isi'] as int?) ?? 1,
+            satuanDasar: (i['satuan_dasar'] as String?)?.nonKosong,
             hargaPokok: (i['harga_pokok'] as num).toDouble(),
           ),
       ],
@@ -108,12 +111,17 @@ class TransaksiRepo {
   }
 }
 
+extension on String {
+  String? get nonKosong => isEmpty ? null : this;
+}
+
 /// Pesan error Supabase yang ramah untuk ditampilkan ke pengguna.
 String pesanErrorDb(Object e) {
   if (e is PostgrestException) {
     // Fungsi atau tabel belum dibuat di Supabase.
     if (e.code == 'PGRST202' || e.code == '42P01' || e.code == 'PGRST205') {
-      return 'Database belum diperbarui. Jalankan (ulang) supabase/transaksi.sql di SQL Editor Supabase.';
+      return 'Database belum diperbarui. Jalankan (ulang) supabase/transaksi.sql lalu pengguna.sql '
+          'di SQL Editor Supabase.';
     }
     return e.message;
   }

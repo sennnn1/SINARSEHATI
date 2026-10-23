@@ -67,7 +67,7 @@ class _LabaKotorPageState extends State<LabaKotorPage> {
         ]) {
           r.penjualan += t.porsiTotal(i);
           r.hpp += hpp;
-          r.qty += i.qty;
+          r.qty += i.qtyDasar;
         }
       }
     }

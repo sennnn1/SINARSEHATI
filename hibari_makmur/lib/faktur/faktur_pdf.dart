@@ -246,7 +246,7 @@ List<pw.Widget> _lembar(DataFaktur d, String? logo, PdfPageFormat f) {
           [
             '${i + 1}',
             it.kodeBarang,
-            it.namaBarang,
+            _namaDenganIsi(it),
             angka(it.qty),
             it.satuan,
             angka(it.harga),
@@ -478,7 +478,7 @@ pw.Widget _struk(DataFaktur d, String? logo, PdfPageFormat f) {
       if (d.dicetakOleh.isNotEmpty) baris('Kasir', d.dicetakOleh),
       garis(),
       for (final it in t.items) ...[
-        pw.Text(it.namaBarang, style: pw.TextStyle(fontSize: fs)),
+        pw.Text(_namaDenganIsi(it), style: pw.TextStyle(fontSize: fs)),
         baris(
           '  ${angka(it.qty)} ${it.satuan} x ${angka(it.harga)}${it.diskon > 0 ? ' -${persen(it.diskon)}' : ''}',
           angka(it.subtotal),
@@ -509,6 +509,13 @@ pw.Widget _struk(DataFaktur d, String? logo, PdfPageFormat f) {
     ],
   );
 }
+
+/// Nama barang + isi kalau dibeli/dijual per Kotak/Dus, mis. "Engsel (isi 50 Pcs)".
+String _namaDenganIsi(ItemTransaksi it) =>
+    it.isi > 1
+        ? '${it.namaBarang} (1 ${it.satuan} = ${angka(it.isi)} ${it.satuanDasar}'
+            '${it.satuanDasar == 'Lusin' ? ' / ${angka(it.isi * 12)} Bh' : ''})'
+        : it.namaBarang;
 
 /// Alamat pelanggan/supplier ditambah daerah transaksi (kalau belum tertulis di alamat).
 String _alamatLengkap(DataFaktur d) {

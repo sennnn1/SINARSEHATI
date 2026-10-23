@@ -141,7 +141,7 @@ class _StokBarangPageState extends State<StokBarangPage> {
                     sel(b.kode),
                     selPanjang(b.nama),
                     sel(b.kategori),
-                    sel('${b.stok}',
+                    sel('${b.stok}${b.stokDalamDus() == null ? '' : '  (${b.stokDalamDus()})'}',
                         color: b.stok <= b.minStok ? AppColors.red : null, bold: b.stok <= b.minStok),
                     sel('${b.minStok}'),
                     sel(b.satuan),

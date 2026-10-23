@@ -300,8 +300,8 @@ List<ProdukTerjual> produkTerlaris(Iterable<Transaksi> penjualan) {
   final map = <String, ProdukTerjual>{};
   for (final t in penjualan) {
     for (final i in t.items) {
-      final p = map.putIfAbsent(i.kodeBarang, () => ProdukTerjual(i.kodeBarang, i.namaBarang, i.satuan));
-      p.qty += i.qty;
+      final p = map.putIfAbsent(i.kodeBarang, () => ProdukTerjual(i.kodeBarang, i.namaBarang, i.satuanDasar));
+      p.qty += i.qtyDasar;
       p.pendapatan += t.porsiTotal(i);
     }
   }

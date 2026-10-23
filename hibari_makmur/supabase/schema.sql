@@ -7,6 +7,8 @@ create table if not exists public.barang (
   min_stok    integer not null default 0,
   harga_beli  numeric(14, 2) not null default 0,
   harga_jual  numeric(14, 2) not null default 0,
+  isi_kotak   integer not null default 0,  -- isi 1 kotak dalam satuan dasar (0 = tidak ada)
+  isi_dus     integer not null default 0,  -- isi 1 dus dalam satuan dasar (0 = tidak ada)
 
   -- Kolom asli dari file Excel price list.
   grup        text,     -- kolom "Kategori" di Excel (grup produk)
@@ -20,6 +22,10 @@ create table if not exists public.barang (
   dibuat_pada timestamptz not null default now(),
   diubah_pada timestamptz not null default now()
 );
+
+-- Untuk tabel yang dibuat sebelum kolom isi_kotak / isi_dus ada.
+alter table public.barang add column if not exists isi_kotak integer not null default 0;
+alter table public.barang add column if not exists isi_dus integer not null default 0;
 
 create index if not exists barang_kategori_idx on public.barang (kategori);
 

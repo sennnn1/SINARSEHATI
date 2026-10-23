@@ -80,7 +80,10 @@ class _DataBarangPageState extends State<DataBarangPage> {
                     sel(b.kode),
                     selPanjang(b.nama),
                     sel(b.kategori),
-                    sel(b.satuan),
+                    sel([
+                      b.satuan,
+                      for (final st in b.satuanTersedia.skip(1)) b.keteranganIsi(st.nama),
+                    ].join(' · ')),
                     sel(rupiah(b.hargaBeli)),
                     sel(rupiah(b.hargaJual)),
                     sel('${b.stok}', color: b.stok <= b.minStok ? AppColors.red : null),
@@ -135,6 +138,10 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
   late final jual = TextEditingController(text: widget.barang?.hargaJual.round().toString());
   late final stok = TextEditingController(text: '${widget.barang?.stok ?? 0}');
   late final minStok = TextEditingController(text: '${widget.barang?.minStok ?? 10}');
+  late final isiKotak = TextEditingController(text: _isi(widget.barang?.isiKotak));
+  late final isiDus = TextEditingController(text: _isi(widget.barang?.isiDus));
+
+  static String _isi(int? n) => n == null || n <= 0 ? '' : '$n';
   late String kategori = widget.barang?.kategori ?? AppState.kategoriList.first;
   late String satuan = widget.barang?.satuan ?? AppState.satuanList.first;
 
@@ -148,13 +155,27 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
 
   @override
   void dispose() {
-    for (final c in [kode, nama, beli, jual, stok, minStok]) {
+    for (final c in [kode, nama, beli, jual, stok, minStok, isiKotak, isiDus]) {
       c.dispose();
     }
     super.dispose();
   }
 
   String? _wajib(String? v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null;
+
+  Widget _isiField(TextEditingController c, String nama, {required bool enabled}) => TextFormField(
+        controller: c,
+        enabled: enabled,
+        inputFormatters: hanyaAngka,
+        decoration: InputDecoration(
+          labelText: 'Isi per $nama (opsional)',
+          suffixText: satuan,
+          helperText: enabled ? 'mis. 1 $nama = 12 $satuan; kosongkan kalau tidak ada' : 'Sudah jadi satuan dasar',
+          helperMaxLines: 2,
+        ),
+        validator: (v) =>
+            (v ?? '').isNotEmpty && (int.tryParse(v!) ?? 0) == 1 ? 'Isi harus lebih dari 1' : null,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -182,6 +203,8 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
           minStok: int.tryParse(minStok.text) ?? 0,
           hargaBeli: parseAngka(beli.text),
           hargaJual: parseAngka(jual.text),
+          isiKotak: int.tryParse(isiKotak.text) ?? 0,
+          isiDus: int.tryParse(isiDus.text) ?? 0,
         );
         s.simpanBarang(b, kodeLama: widget.barang?.kode);
         Navigator.pop(context);
@@ -218,23 +241,28 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
                 onChanged: (v) => kategori = v ?? kategori,
               ),
               DropdownButtonFormField<String>(
-                initialValue: AppState.satuanList.contains(satuan) ? satuan : null,
-                decoration: const InputDecoration(labelText: 'Satuan'),
-                items: [for (final k in AppState.satuanList) DropdownMenuItem(value: k, child: Text(k))],
-                onChanged: (v) => satuan = v ?? satuan,
+                initialValue: satuan,
+                decoration: const InputDecoration(
+                  labelText: 'Satuan Dasar',
+                  helperText: 'Satuan stok & harga (Pcs, Lusin, Kotak, ...)',
+                ),
+                items: [
+                  for (final k in {...AppState.satuanList, satuan}) DropdownMenuItem(value: k, child: Text(k)),
+                ],
+                onChanged: (v) => setState(() => satuan = v ?? satuan),
               ),
             ),
             dua(
               TextFormField(
                 controller: beli,
                 inputFormatters: hanyaAngka,
-                decoration: const InputDecoration(labelText: 'Harga Beli', prefixText: 'Rp '),
+                decoration: InputDecoration(labelText: 'Harga Beli per $satuan', prefixText: 'Rp '),
                 validator: _wajib,
               ),
               TextFormField(
                 controller: jual,
                 inputFormatters: hanyaAngka,
-                decoration: const InputDecoration(labelText: 'Harga Jual', prefixText: 'Rp '),
+                decoration: InputDecoration(labelText: 'Harga Jual per $satuan', prefixText: 'Rp '),
                 validator: (v) {
                   final e = _wajib(v);
                   if (e != null) return e;
@@ -259,6 +287,11 @@ class _BarangFormDialogState extends State<BarangFormDialog> {
                 decoration: const InputDecoration(labelText: 'Minimal Stok'),
                 validator: _wajib,
               ),
+            ),
+            // Kotak / Dus: beli atau jual per kotak/dus, stok tetap dihitung dalam satuan dasar.
+            dua(
+              _isiField(isiKotak, 'Kotak', enabled: satuan != 'Kotak'),
+              _isiField(isiDus, 'Dus', enabled: satuan != 'Dus'),
             ),
           ],
         ),

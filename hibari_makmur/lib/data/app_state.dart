@@ -25,8 +25,8 @@ class AppState extends ChangeNotifier {
     'Lainnya',
   ];
   static const satuanList = [
-    'Pcs', 'Sak', 'Kaleng', 'Kg', 'Tube', 'Batang', //
-    'Lembar', 'Galon', 'Set', 'Meter', 'Box',
+    'Bh', 'Pcs', 'Lusin', 'Pasang', 'Sak', 'Kaleng', 'Kg', 'Tube', 'Batang', //
+    'Lembar', 'Galon', 'Set', 'Meter', 'Box', 'Kotak', 'Dus', 'Roll', //
   ];
   static const roleList = ['Owner', 'Admin', 'Sales'];
 
@@ -284,7 +284,7 @@ class AppState extends ChangeNotifier {
   Future<String?> tambahPenjualan(Transaksi t) async {
     final butuh = <String, int>{};
     for (final i in t.items) {
-      butuh[i.kodeBarang] = (butuh[i.kodeBarang] ?? 0) + i.qty;
+      butuh[i.kodeBarang] = (butuh[i.kodeBarang] ?? 0) + i.qtyDasar;
     }
     for (final e in butuh.entries) {
       final b = cariBarang(e.key);
@@ -297,8 +297,9 @@ class AppState extends ChangeNotifier {
     if (err != null) return err;
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang)!;
-      i.hargaPokok = b.hargaBeli;
-      _ubahStok(b, -i.qty, 'Penjualan ${t.kode}', t.tanggal, sinkron: transaksiRepo == null);
+      i.hargaPokok = b.hargaBeli * i.isi;
+      _ubahStok(b, -i.qtyDasar, 'Penjualan ${t.kode}${_keteranganSatuan(i)}', t.tanggal,
+          sinkron: transaksiRepo == null);
     }
     penjualan.add(t);
     notifyListeners();
@@ -312,15 +313,19 @@ class AppState extends ChangeNotifier {
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang);
       if (b == null) continue;
-      // Harga beli terakhir = harga setelah diskon barang dari supplier.
-      b.hargaBeli = i.hargaBersih;
+      // Harga beli terakhir per satuan dasar = harga setelah diskon ÷ isi (mis. per Dus ÷ 50).
+      b.hargaBeli = i.hargaBersih / i.isi;
       i.hargaPokok = i.hargaBersih;
-      _ubahStok(b, i.qty, 'Pembelian ${t.kode}', t.tanggal, sinkron: transaksiRepo == null);
+      _ubahStok(b, i.qtyDasar, 'Pembelian ${t.kode}${_keteranganSatuan(i)}', t.tanggal,
+          sinkron: transaksiRepo == null);
     }
     pembelian.add(t);
     notifyListeners();
     return null;
   }
+
+  /// Mis. " (2 Dus)" untuk kartu stok kalau dibeli/dijual bukan dalam satuan dasar.
+  static String _keteranganSatuan(ItemTransaksi i) => i.isi > 1 ? ' (${i.qty} ${i.satuan})' : '';
 
   Future<String?> _simpanKeDb(Transaksi t, {required bool penjualan}) async {
     final r = transaksiRepo;
@@ -347,7 +352,7 @@ class AppState extends ChangeNotifier {
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang);
       if (b == null) continue;
-      _ubahStok(b, isPenjualan ? i.qty : -i.qty, 'Batal ${t.kode}', DateTime.now(), sinkron: r == null);
+      _ubahStok(b, isPenjualan ? i.qtyDasar : -i.qtyDasar, 'Batal ${t.kode}', DateTime.now(), sinkron: r == null);
     }
     (isPenjualan ? penjualan : pembelian).remove(t);
     notifyListeners();
@@ -488,17 +493,19 @@ class AppState extends ChangeNotifier {
         _b('BRG0005', 'Plat Besi 2mm', 'Besi & Baja', 'Lembar', 40, 10, 180000, 210000),
         _b('BRG0012', 'Semen Tiga Roda', 'Perlengkapan Bangunan', 'Sak', 5, 20, 45000, 50000),
         _b('BRG0021', 'Besi Hollow 4x4', 'Besi & Baja', 'Pcs', 80, 20, 16000, 20000),
-        _b('BRG0031', 'Cat Nippon 1kg', 'Cat', 'Kaleng', 3, 15, 21000, 25000),
+        _b('BRG0031', 'Cat Nippon 1kg', 'Cat', 'Kaleng', 3, 15, 21000, 25000)..isiDus = 12,
         _b('BRG0034', 'Cat Avian 5kg', 'Cat', 'Galon', 25, 10, 95000, 115000),
         _b('BRG0045', 'Paku 5 cm', 'Perlengkapan Bangunan', 'Kg', 2, 10, 8000, 10000),
         _b('BRG0050', 'Palu Kambing', 'Alat Pertukangan', 'Pcs', 30, 10, 35000, 45000),
         _b('BRG0052', 'Gergaji Kayu', 'Alat Pertukangan', 'Pcs', 18, 5, 55000, 70000),
-        _b('BRG0067', 'Lem Kaca', 'Lainnya', 'Tube', 6, 20, 10000, 13000),
+        _b('BRG0067', 'Lem Kaca', 'Lainnya', 'Tube', 6, 20, 10000, 13000)..isiKotak = 12..isiDus = 144,
         _b('BRG0071', 'Kunci Pintu Solid', 'Kunci & Engsel', 'Set', 22, 8, 85000, 110000),
-        _b('BRG0089', 'Engsel Pintu', 'Kunci & Engsel', 'Pcs', 3, 15, 11000, 15000),
+        _b('BRG0089', 'Engsel Pintu', 'Kunci & Engsel', 'Pcs', 3, 15, 11000, 15000)..isiKotak = 10..isiDus = 50,
         _b('BRG0090', 'Pipa PVC 3/4"', 'Perlengkapan Bangunan', 'Batang', 60, 20, 22000, 28000),
         _b('BRG0095', 'Meteran 5m', 'Alat Pertukangan', 'Pcs', 15, 5, 25000, 35000),
-        _b('BRG0098', 'Amplas Kayu', 'Lainnya', 'Lembar', 90, 30, 2500, 4000),
+        _b('BRG0098', 'Amplas Kayu', 'Lainnya', 'Lembar', 90, 30, 2500, 4000)..isiDus = 100,
+        // Dijual per lusin: 1 Dus = 5 Lusin (60 Bh).
+        _b('BRG0099', 'Water Pas Eurostar 12"', 'Alat Pertukangan', 'Lusin', 8, 2, 300000, 360000)..isiDus = 5,
       ]);
 
     supplier

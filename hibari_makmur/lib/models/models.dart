@@ -8,6 +8,8 @@ class Barang {
     required this.minStok,
     required this.hargaBeli,
     required this.hargaJual,
+    this.isiKotak = 0,
+    this.isiDus = 0,
   });
 
   String kode;
@@ -16,10 +18,43 @@ class Barang {
   String satuan;
   int stok;
   int minStok;
+
+  /// Harga beli & jual per [satuan] (satuan dasar: Pcs, Lusin, Kotak, dst).
   double hargaBeli;
   double hargaJual;
 
+  /// Isi satu Kotak / satu Dus dalam [satuan] dasar; 0 = tidak dijual per kotak/dus.
+  /// Diisi dari Pack 1 / Pack 2 di price list (untuk barang per lusin sudah dibagi 12).
+  int isiKotak;
+  int isiDus;
+
   double get nilaiStok => stok * hargaBeli;
+
+  /// Satuan yang bisa dipilih di transaksi beserta isinya dalam satuan dasar,
+  /// mis. Pcs (1), Kotak (10), Dus (50).
+  List<({String nama, int isi})> get satuanTersedia => [
+        (nama: satuan, isi: 1),
+        if (isiKotak > 1 && satuan != 'Kotak') (nama: 'Kotak', isi: isiKotak),
+        if (isiDus > 1 && satuan != 'Dus') (nama: 'Dus', isi: isiDus),
+      ];
+
+  /// Isi [namaSatuan] dalam satuan dasar (1 kalau satuan dasar / tidak dikenal).
+  int isiSatuan(String namaSatuan) =>
+      satuanTersedia.where((s) => s.nama == namaSatuan).firstOrNull?.isi ?? 1;
+
+  /// Mis. "1 Dus = 5 Lusin (60 Bh)" untuk barang per lusin, "1 Dus = 400 Bh" untuk lainnya.
+  String keteranganIsi(String namaSatuan) {
+    final isi = isiSatuan(namaSatuan);
+    final bh = satuan == 'Lusin' ? ' (${isi * 12} Bh)' : '';
+    return '1 $namaSatuan = $isi $satuan$bh';
+  }
+
+  /// Stok dalam bentuk dus + sisa, mis. "2 Dus + 20 Pcs"; null kalau tidak ada dus.
+  String? stokDalamDus() {
+    if (isiDus <= 1 || satuan == 'Dus' || stok < isiDus) return null;
+    final sisa = stok % isiDus;
+    return '${stok ~/ isiDus} Dus${sisa == 0 ? '' : ' + $sisa $satuan'}';
+  }
 
   String get statusStok => stok <= 0
       ? 'Habis'
@@ -36,6 +71,8 @@ class Barang {
         minStok: minStok,
         hargaBeli: hargaBeli,
         hargaJual: hargaJual,
+        isiKotak: isiKotak,
+        isiDus: isiDus,
       );
 }
 
@@ -67,18 +104,29 @@ class ItemTransaksi {
     required this.harga,
     this.diskon = 0,
     this.hargaPokok = 0,
-  });
+    this.isi = 1,
+    String? satuanDasar,
+  }) : satuanDasar = satuanDasar ?? satuan;
 
   final String kodeBarang;
   final String namaBarang;
+
+  /// Satuan yang dipakai di transaksi (mis. Dus); [qty] dan [harga] dalam satuan ini.
   final String satuan;
   final int qty;
   final double harga;
 
+  /// Isi satu [satuan] dalam [satuanDasar] barang, mis. 1 Dus = 50 Pcs.
+  final int isi;
+  final String satuanDasar;
+
+  /// Jumlah dalam satuan dasar; inilah yang menambah / mengurangi stok.
+  int get qtyDasar => qty * isi;
+
   /// Diskon per barang dalam persen (0–100).
   final double diskon;
 
-  /// Harga beli barang saat dijual (untuk menghitung HPP / laba kotor).
+  /// Harga beli per [satuan] saat transaksi (untuk menghitung HPP / laba kotor).
   double hargaPokok;
 
   /// Qty × harga sebelum diskon.

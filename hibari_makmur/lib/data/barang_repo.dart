@@ -22,8 +22,8 @@ class BarangRepo {
     return hasil;
   }
 
-  /// Hanya kolom yang dikelola aplikasi; kolom asal Excel (grup, isi_pack, dll.)
-  /// tidak ikut tertimpa.
+  /// Hanya kolom yang dikelola aplikasi; kolom asal Excel (grup, item,
+  /// isi_pack, catatan, dll.) tidak ikut tertimpa.
   Future<void> simpan(Barang b, {String? kodeLama}) async {
     if (kodeLama != null && kodeLama != b.kode) {
       await _tabel.update(_keMap(b)).eq('kode', kodeLama);
@@ -45,6 +45,8 @@ class BarangRepo {
         minStok: m['min_stok'] as int,
         hargaBeli: (m['harga_beli'] as num).toDouble(),
         hargaJual: (m['harga_jual'] as num).toDouble(),
+        isiKotak: (m['isi_kotak'] as int?) ?? 0,
+        isiDus: (m['isi_dus'] as int?) ?? 0,
       );
 
   static Map<String, dynamic> _keMap(Barang b) => {
@@ -56,5 +58,7 @@ class BarangRepo {
         'min_stok': b.minStok,
         'harga_beli': b.hargaBeli,
         'harga_jual': b.hargaJual,
+        'isi_kotak': b.isiKotak,
+        'isi_dus': b.isiDus,
       };
 }

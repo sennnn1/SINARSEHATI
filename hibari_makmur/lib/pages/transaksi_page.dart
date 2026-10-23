@@ -226,6 +226,9 @@ final _formatPersen = [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}([.,]\
 
 class _BarisItem {
   String? kode;
+
+  /// Satuan yang dipilih (mis. Dus); null = satuan dasar barang.
+  String? satuan;
   final qty = TextEditingController(text: '1');
   final harga = TextEditingController();
   final diskon = TextEditingController();
@@ -467,6 +470,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       },
       onSelected: (b) => setState(() {
         r.kode = b.kode;
+        r.satuan = b.satuan;
         r.harga.text = (pj ? b.hargaJual : b.hargaBeli).round().toString();
         if (identical(r, rows.last)) rows.add(_BarisItem());
       }),
@@ -480,15 +484,45 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
         decoration: InputDecoration(
           labelText: 'Barang ${i + 1}',
           hintText: 'Ketik kode / nama barang',
-          helperText: b == null ? null : 'Stok: ${b.stok} ${b.satuan}',
+          helperText: b == null
+              ? null
+              : 'Stok: ${angka(b.stok)} ${b.satuan}${b.stokDalamDus() == null ? '' : ' (${b.stokDalamDus()})'}',
         ),
       ),
     );
+    final satuan = b == null ? null : r.satuan ?? b.satuan;
+    final isi = b == null ? 1 : b.isiSatuan(satuan!);
+    // Barang yang punya Kotak/Dus: satuan dipilih langsung di kolom Qty.
+    final pilihSatuan = b == null || b.satuanTersedia.length < 2
+        ? null
+        : DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: satuan,
+              isDense: true,
+              borderRadius: BorderRadius.circular(10),
+              style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w600, fontSize: 14),
+              items: [
+                for (final st in b.satuanTersedia) DropdownMenuItem(value: st.nama, child: Text(st.nama)),
+              ],
+              onChanged: (v) => setState(() {
+                r.satuan = v;
+                // Harga ikut satuan: harga per satuan dasar × isi (mis. per Pcs × 50 = per Dus).
+                r.harga.text = ((pj ? b.hargaJual : b.hargaBeli) * b.isiSatuan(v!)).round().toString();
+              }),
+            ),
+          );
     final qty = TextField(
       controller: r.qty,
       inputFormatters: hanyaAngka,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(labelText: 'Qty', suffixText: b?.satuan),
+      decoration: InputDecoration(
+        labelText: 'Qty',
+        suffixText: pilihSatuan == null ? b?.satuan : null,
+        suffixIcon: pilihSatuan == null ? null : Padding(padding: const EdgeInsets.only(right: 8), child: pilihSatuan),
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        helperText: isi > 1 ? '${b!.keteranganIsi(satuan!)} · total ${angka(r.q * isi)} ${b.satuan}' : null,
+        helperMaxLines: 2,
+      ),
       onChanged: (_) => setState(() {}),
     );
     final harga = TextField(
@@ -497,7 +531,7 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       inputFormatters: hanyaAngka,
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
-        labelText: 'Harga',
+        labelText: isi > 1 ? 'Harga / $satuan' : 'Harga',
         prefixText: 'Rp ',
         fillColor: bolehUbahHarga ? null : AppColors.bg,
         suffixIcon: bolehUbahHarga ? null : const Icon(Icons.lock_outline, size: 16),
@@ -581,19 +615,22 @@ class _TransaksiFormDialogState extends State<TransaksiFormDialog> {
       if (r.kode == null) continue;
       final b = s.cariBarang(r.kode!);
       if (b == null) continue;
-      // Sales selalu memakai harga jual dari data barang.
-      final harga = bolehUbahHarga ? r.h : b.hargaJual;
+      final isi = b.isiSatuan(r.satuan ?? b.satuan);
+      // Sales selalu memakai harga jual dari data barang (per Kotak/Dus = × isi).
+      final harga = bolehUbahHarga ? r.h : b.hargaJual * isi;
       if (r.q <= 0) err ??= 'Jumlah ${b.nama} harus lebih dari 0.';
       if (harga <= 0) err ??= 'Harga ${b.nama} belum diisi.';
       if (r.d > 100) err ??= 'Diskon ${b.nama} tidak boleh lebih dari 100%.';
       items.add(ItemTransaksi(
         kodeBarang: b.kode,
         namaBarang: b.nama,
-        satuan: b.satuan,
+        satuan: isi > 1 ? r.satuan! : b.satuan,
         qty: r.q,
         harga: harga,
         diskon: r.d,
-        hargaPokok: b.hargaBeli,
+        isi: isi,
+        satuanDasar: b.satuan,
+        hargaPokok: b.hargaBeli * isi,
       ));
     }
     if (items.isEmpty) err ??= 'Tambahkan minimal satu barang.';
@@ -689,7 +726,7 @@ class DetailTransaksiDialog extends StatelessWidget {
                     DataRow(cells: [
                       sel(i.kodeBarang),
                       sel(i.namaBarang),
-                      sel('${i.qty} ${i.satuan}'),
+                      sel(i.isi > 1 ? '${i.qty} ${i.satuan} (${angka(i.qtyDasar)} ${i.satuanDasar})' : '${i.qty} ${i.satuan}'),
                       sel(rupiah(i.harga)),
                       if (adaDiskonBarang) sel(i.diskon > 0 ? persen(i.diskon) : '-'),
                       sel(rupiah(i.subtotal)),

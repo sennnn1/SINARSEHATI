@@ -32,6 +32,10 @@ create table if not exists public.transaksi_item (
 
 -- Diskon per barang dalam persen (0-100).
 alter table public.transaksi_item add column if not exists diskon numeric(5, 2) not null default 0;
+-- Satuan transaksi bisa Kotak/Dus: qty & harga dalam satuan itu, isi = jumlah
+-- satuan dasar per satuan (mis. 1 Dus = 50 Pcs), satuan_dasar = satuan stok.
+alter table public.transaksi_item add column if not exists isi integer not null default 1;
+alter table public.transaksi_item add column if not exists satuan_dasar text not null default '';
 
 create index if not exists transaksi_item_kode_idx on public.transaksi_item (kode_transaksi);
 
@@ -97,9 +101,30 @@ end $$;
 revoke all on function public.peran_saya() from public;
 grant execute on function public.peran_saya() to authenticated;
 
+-- Isi 1 kotak / 1 dus dalam satuan dasar barang (diisi dari price list lewat
+-- satuan_barang.sql, bisa diubah di menu Data Barang).
+alter table public.barang add column if not exists isi_kotak integer not null default 0;
+alter table public.barang add column if not exists isi_dus integer not null default 0;
+
+-- ------------------------------------------------------------ isi_satuan
+-- Isi satu satuan transaksi dalam satuan dasar barang (Kotak/Dus memakai
+-- isi_kotak/isi_dus; selain itu 1). Harus sama dengan Barang.satuanTersedia di aplikasi.
+create or replace function public.isi_satuan(p_satuan text, p_dasar text, p_kotak integer, p_dus integer)
+returns integer
+language sql
+immutable
+as $$
+  select case
+    when p_satuan = 'Kotak' and p_dasar <> 'Kotak' and coalesce(p_kotak, 0) > 1 then p_kotak
+    when p_satuan = 'Dus' and p_dasar <> 'Dus' and coalesce(p_dus, 0) > 1 then p_dus
+    else 1
+  end
+$$;
+
 -- ------------------------------------------------------- simpan_transaksi
--- p_items: [{"kode_barang": "...", "nama_barang": "...", "satuan": "...", "qty": 1, "harga": 1000,
---            "diskon": 5}, ...]   (diskon = persen per barang)
+-- p_items: [{"kode_barang": "...", "nama_barang": "...", "satuan": "Dus", "qty": 1, "harga": 1000,
+--            "diskon": 5}, ...]   (diskon = persen per barang; qty & harga per satuan)
+-- Isi satuan dihitung ulang di sini dari data barang (tidak percaya kiriman aplikasi).
 -- p_diskon: potongan seluruh faktur dalam rupiah.
 -- Mengembalikan nomor faktur yang dibuat.
 -- security definer: Sales boleh menjual (stok berkurang) walaupun tidak boleh
@@ -127,6 +152,10 @@ declare
   v_n      integer;
   v_it     jsonb;
   v_qty    integer;
+  v_isi    integer;
+  v_dasar  integer;
+  v_satuan text;
+  v_butuh  integer;
   v_harga  numeric;
   v_diskon numeric;
   v_bersih numeric;
@@ -155,15 +184,19 @@ begin
   -- Cek semua barang ada dan (untuk penjualan) stok cukup, sekaligus mengunci
   -- baris barangnya supaya tidak dijual bersamaan oleh kasir lain.
   for r in
-    select x->>'kode_barang' as kode, sum((x->>'qty')::int) as qty
+    select distinct x->>'kode_barang' as kode
     from jsonb_array_elements(p_items) x
-    group by 1
   loop
     select * into b from public.barang where kode = r.kode for update;
     if not found then
       raise exception 'Barang % tidak ditemukan', r.kode;
     end if;
-    if p_jenis = 'penjualan' and b.stok < r.qty then
+    -- Kebutuhan dalam satuan dasar (mis. 2 Dus isi 50 = 100 Pcs).
+    select coalesce(sum((x->>'qty')::int * public.isi_satuan(x->>'satuan', b.satuan, b.isi_kotak, b.isi_dus)), 0)
+      into v_butuh
+    from jsonb_array_elements(p_items) x
+    where x->>'kode_barang' = r.kode;
+    if p_jenis = 'penjualan' and b.stok < v_butuh then
       raise exception 'Stok % tidak cukup (tersedia % %)', b.nama, b.stok, b.satuan;
     end if;
   end loop;
@@ -188,32 +221,39 @@ begin
       raise exception 'Diskon barang harus 0 sampai 100 persen.';
     end if;
     select * into b from public.barang where kode = v_it->>'kode_barang';
-    -- Sales tidak boleh mengubah harga: selalu pakai harga jual dari data barang.
+    v_isi    := public.isi_satuan(v_it->>'satuan', b.satuan, b.isi_kotak, b.isi_dus);
+    v_satuan := case when v_isi = 1 then b.satuan else v_it->>'satuan' end;
+    v_dasar  := v_qty * v_isi;
+    -- Sales tidak boleh mengubah harga: selalu pakai harga jual dari data barang
+    -- (per Kotak/Dus = harga jual × isi).
     if v_peran = 'Sales' then
-      v_harga := b.harga_jual;
+      v_harga := b.harga_jual * v_isi;
     end if;
     v_bersih := v_harga * (1 - v_diskon / 100);
-    v_pokok := case when p_jenis = 'penjualan' then b.harga_beli else v_bersih end;
+    v_pokok := case when p_jenis = 'penjualan' then b.harga_beli * v_isi else v_bersih end;
 
     insert into public.transaksi_item
-      (kode_transaksi, urutan, kode_barang, nama_barang, satuan, qty, harga, diskon, harga_pokok)
+      (kode_transaksi, urutan, kode_barang, nama_barang, satuan, qty, harga, diskon, harga_pokok,
+       isi, satuan_dasar)
     values
-      (v_kode, i, b.kode, coalesce(v_it->>'nama_barang', b.nama), coalesce(v_it->>'satuan', b.satuan),
-       v_qty, v_harga, v_diskon, v_pokok);
+      (v_kode, i, b.kode, coalesce(v_it->>'nama_barang', b.nama), v_satuan,
+       v_qty, v_harga, v_diskon, v_pokok, v_isi, b.satuan);
 
     if p_jenis = 'penjualan' then
-      update public.barang set stok = greatest(0, stok - v_qty)
+      update public.barang set stok = greatest(0, stok - v_dasar)
       where kode = b.kode returning stok into v_stok;
     else
-      -- Pembelian menambah stok dan memperbarui harga beli terakhir (setelah diskon).
-      update public.barang set stok = stok + v_qty, harga_beli = v_bersih
+      -- Pembelian menambah stok dan memperbarui harga beli terakhir per satuan
+      -- dasar (harga setelah diskon ÷ isi, mis. harga per Dus ÷ 50).
+      update public.barang set stok = stok + v_dasar, harga_beli = v_bersih / v_isi
       where kode = b.kode returning stok into v_stok;
     end if;
 
     insert into public.mutasi_stok (tanggal, kode_barang, nama_barang, perubahan, stok_akhir, keterangan)
     values (p_tanggal, b.kode, b.nama,
-            case when p_jenis = 'penjualan' then -v_qty else v_qty end, v_stok,
-            case when p_jenis = 'penjualan' then 'Penjualan ' else 'Pembelian ' end || v_kode);
+            case when p_jenis = 'penjualan' then -v_dasar else v_dasar end, v_stok,
+            case when p_jenis = 'penjualan' then 'Penjualan ' else 'Pembelian ' end || v_kode
+            || case when v_isi > 1 then ' (' || v_qty || ' ' || v_satuan || ')' else '' end);
   end loop;
 
   return v_kode;
@@ -242,7 +282,7 @@ begin
   end if;
 
   for it in select * from public.transaksi_item where kode_transaksi = p_kode order by urutan loop
-    v_ubah := case when t.jenis = 'penjualan' then it.qty else -it.qty end;
+    v_ubah := case when t.jenis = 'penjualan' then it.qty * it.isi else -it.qty * it.isi end;
     update public.barang set stok = greatest(0, stok + v_ubah)
     where kode = it.kode_barang returning stok into v_stok;
     if found then

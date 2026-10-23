@@ -35,6 +35,22 @@ Hak akses tiap role:
   barang), dan di form penjualan harga terkunci ke harga jual dari data barang. Sales tetap
   boleh memberi diskon.
 
+## Satuan, Kotak & Dus
+- Setiap barang punya **satuan dasar** (Bh, Lusin, Pasang, Batang, ...). Stok, harga beli, dan
+  harga jual di Data Barang dihitung per satuan dasar.
+- Untuk barang dari price list, satuan dasar sudah ditentukan otomatis: yang tertulis
+  "JUAL PER LUSIN" / "/LSN" menjadi **Lusin**, "HRG/PSG" menjadi **Pasang**, selain itu **Bh**.
+- **Isi per Kotak** dan **Isi per Dus** (dalam satuan dasar, opsional) di form Data Barang.
+  Dari price list diambil dari kolom **Pack 1** (Kotak) dan **Pack 2** (Dus), yang di Excel
+  dalam buah; untuk barang per lusin dibagi 12. Contoh: Water Pas Eurostar 12" Pack 2 = 60 bh
+  → **1 Dus = 5 Lusin (60 Bh)**; Batu Grinda 4" x 1mm Pack 2 = 400 → **1 Dus = 400 Bh**.
+  Periksa 26 barang per lusin di Data Barang; beberapa isi di Excel tidak jelas satuannya.
+- Di form Penjualan/Pembelian, satuan dipilih di kolom Qty (Pcs / Kotak / Dus). Harga otomatis
+  menjadi harga per satuan dasar × isi dan masih bisa diubah (kecuali oleh Sales). Contoh: beli
+  1 Dus Rp 500.000 → stok +50 Pcs dan harga beli menjadi Rp 10.000 per Pcs.
+- Faktur menulis "1 Dus" dengan keterangan isi, kartu stok mencatat "+50 (1 Dus)", dan halaman
+  Stok Barang menampilkan stok dalam dus, mis. "120 (2 Dus + 20 Pcs)".
+
 ## Diskon
 - **Diskon per barang** (kolom *Disc*, dalam persen) di setiap baris form Penjualan/Pembelian.
 - **Diskon faktur** untuk seluruh transaksi, diisi dalam persen atau rupiah; disimpan sebagai
@@ -113,8 +129,10 @@ Fungsi `simpan_transaksi` memakai harga jual dari database untuk Sales dan menol
 dari Sales; `sesuaikan_stok` hanya untuk Owner/Admin. Tabel lain (transaksi, pelanggan) belum
 dibatasi per role; pembatasan menu masih di sisi aplikasi.
 
-**Setelah update diskon & hak akses Sales**, jalankan ulang `supabase/schema.sql`,
-`supabase/transaksi.sql`, lalu `supabase/pengguna.sql` (urutan ini) di SQL Editor.
+**Setelah update diskon, hak akses Sales, dan satuan Kotak/Dus**, jalankan di SQL Editor
+dengan urutan: `supabase/transaksi.sql`, `supabase/pengguna.sql`, lalu `supabase/satuan_barang.sql`
+(mengisi satuan Bh/Lusin dan isi Kotak/Dus untuk barang yang sudah ada; barang yang satuannya
+sudah diubah di aplikasi tidak disentuh).
 
 ## Struktur
 - `lib/main.dart` — entry point, memilih mode demo / Supabase, `AuthGate`
