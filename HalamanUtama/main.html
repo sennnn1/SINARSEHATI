@@ -1,0 +1,254 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hibari Makmur - Dashboard</title>
+<style>
+:root{--side:#0a3b2c;--side2:#145a42;--bg:#f3f6f9;--card:#fff;--text:#1c2733;--muted:#6b7886;--line:#e8edf2;--green:#1fa463;--blue:#2f7df6;--orange:#f59e0b;--red:#ef4444;--gold:#c9a24b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+a{color:var(--blue);text-decoration:none}
+.layout{display:flex;min-height:100vh}
+/* Sidebar */
+.sidebar{width:214px;background:var(--side);color:#fff;padding:18px 14px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;transition:transform .25s}
+.logo{text-align:center;margin-bottom:18px}
+.logo img{max-width:140px;max-height:80px}
+.logo .fallback{font-weight:800;font-size:26px;letter-spacing:1px;display:none}
+.logo .fallback small{display:block;font-size:11px;letter-spacing:4px;color:var(--gold)}
+.sidebar h6{font-size:12px;font-weight:600;color:#9db8ad;margin:20px 8px 8px;letter-spacing:.5px}
+.sidebar a{display:flex;align-items:center;gap:12px;color:#e9f2ee;padding:10px 12px;border-radius:8px;margin-bottom:2px;font-size:14px}
+.sidebar a:hover{background:rgba(255,255,255,.08)}
+.sidebar a.active{background:var(--side2);font-weight:600}
+.sidebar .ic{width:20px;text-align:center;font-size:16px}
+/* Main */
+.main{flex:1;min-width:0}
+.topbar{background:#fff;height:64px;display:flex;align-items:center;gap:16px;padding:0 24px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.burger{background:none;border:0;font-size:24px;cursor:pointer;color:var(--text)}
+.search{flex:1;max-width:620px;background:#eef2f7;border-radius:10px;padding:11px 16px;border:0;font-size:14px;color:var(--text)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:22px}
+.bell{position:relative;font-size:20px}
+.bell b{position:absolute;top:-6px;right:-8px;background:var(--red);color:#fff;font-size:10px;border-radius:50%;width:16px;height:16px;display:grid;place-items:center}
+.user{display:flex;align-items:center;gap:10px;font-weight:500}
+.avatar{width:38px;height:38px;border-radius:50%;background:#dbe8fb;display:grid;place-items:center;font-size:18px}
+.content{padding:16px 24px 28px}
+.card{background:var(--card);border-radius:14px;padding:18px 20px;box-shadow:0 1px 3px rgba(20,40,60,.06)}
+.grid{display:grid;gap:16px;margin-bottom:16px}
+.stats{grid-template-columns:repeat(4,1fr)}
+.two{grid-template-columns:1.35fr 1fr}
+.two-eq{grid-template-columns:1fr 1fr}
+/* Stat cards */
+.stat{display:flex;align-items:center;gap:16px}
+.stat .badge{width:64px;height:64px;border-radius:14px;display:grid;place-items:center;font-size:28px;color:#fff;flex-shrink:0}
+.stat small{color:var(--text);font-size:14px}
+.stat strong{display:block;font-size:24px;margin:2px 0}
+.stat .up{color:var(--green);font-size:14px}
+/* Card header */
+.card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-h h3{font-size:18px;display:flex;align-items:center;gap:10px}
+select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;background:#fff;color:var(--text)}
+/* Bar chart */
+.legend{display:flex;justify-content:flex-end;gap:18px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.chart{display:flex;height:190px;padding-top:6px}
+.yaxis{display:flex;flex-direction:column;justify-content:space-between;font-size:12px;color:var(--muted);padding-right:10px;text-align:right;padding-bottom:20px}
+.plot{flex:1;display:flex;align-items:flex-end;gap:2%;border-left:1px solid #cfd7df;border-bottom:1px solid #cfd7df;padding:0 1%;height:170px;background:repeating-linear-gradient(to top,transparent 0,transparent 41px,#eef1f4 42px)}
+.month{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative}
+.bars{display:flex;align-items:flex-end;gap:3px;height:100%;width:100%;justify-content:center}
+.bars i{width:38%;max-width:16px;border-radius:2px 2px 0 0;display:block}
+.bars i:first-child{background:var(--green)}.bars i:last-child{background:var(--blue)}
+.month span{position:absolute;bottom:-22px;font-size:12px;color:var(--muted)}
+.chart-wrap{padding-bottom:22px}
+/* Donut */
+.stock{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.donut{width:190px;height:190px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.donut div{width:116px;height:116px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.donut b{font-size:26px;line-height:1}.donut small{font-size:12px;color:var(--muted)}
+.keys{flex:1;min-width:200px}
+.keys div{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+.keys .dot{margin:0}
+.keys span:nth-child(2){flex:1}
+.keys em{font-style:normal;color:var(--muted)}
+/* Tables */
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:460px}
+th{background:#f3f6f9;text-align:left;font-weight:600;padding:9px 10px;font-size:13px}
+td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.pill{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:500;display:inline-block}
+.pill.lunas{background:#d3f1e0;color:#13804a}.pill.piutang{background:#fdeaa8;color:#8a6100}
+.low{color:var(--red);font-weight:600}
+.right{text-align:right}
+/* Responsive */
+@media(max-width:1100px){.stats{grid-template-columns:repeat(2,1fr)}.two,.two-eq{grid-template-columns:1fr}}
+@media(max-width:820px){
+.sidebar{position:fixed;z-index:20;transform:translateX(-100%);left:0}
+.sidebar.open{transform:none}
+.user span,.date{display:none}
+.content{padding:12px}
+.topbar{padding:0 12px}
+}
+@media(max-width:520px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="logo">
+      <!-- Ganti "logo.png" dengan file logo Anda -->
+      <img src="logo.png" alt="Hibari Makmur" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <div class="fallback">HIBARI<small>MAKMUR</small></div>
+    </div>
+    <a href="#" class="active"><span class="ic">🏠</span>Home</a>
+    <h6>TRANSAKSI</h6>
+    <a href="pembelian.html"><span class="ic">🛒</span>Pembelian</a>
+    <a href="penjualan.html"><span class="ic">🛍️</span>Penjualan</a>
+    <a href="stok.html"><span class="ic">📦</span>Stok Barang</a>
+    <h6>LAPORAN</h6>
+    <a href="laporan-periodik.html"><span class="ic">📊</span>Laporan Periodik</a>
+    <a href="laporan-pembelian.html"><span class="ic">📄</span>Laporan Pembelian</a>
+    <a href="laporan-penjualan.html"><span class="ic">📄</span>Laporan Penjualan</a>
+    <a href="laporan-stok.html"><span class="ic">📦</span>Laporan Stok</a>
+    <a href="laba-rugi.html"><span class="ic">🥧</span>Laba Rugi</a>
+    <h6>DATA MASTER</h6>
+    <a href="data-barang.html"><span class="ic">📦</span>Data Barang</a>
+    <a href="data-supplier.html"><span class="ic">🚚</span>Data Supplier</a>
+    <a href="data-pelanggan.html"><span class="ic">👥</span>Data Pelanggan</a>
+    <h6>PENGATURAN</h6>
+    <a href="pengguna.html"><span class="ic">👤</span>Pengguna</a>
+    <a href="pengaturan.html"><span class="ic">⚙️</span>Pengaturan</a>
+  </aside>
+ 
+  <div class="main">
+    <header class="topbar">
+      <button class="burger" id="burger" aria-label="Menu">☰</button>
+      <input class="search" type="search" placeholder="Cari barang, pelanggan, supplier...">
+      <div class="top-right">
+        <div class="date" id="today">📅</div>
+        <div class="bell">🔔<b>3</b></div>
+        <div class="user"><div class="avatar">👤</div><span>Admin ▾</span></div>
+      </div>
+    </header>
+ 
+    <main class="content">
+      <section class="grid stats">
+        <div class="card stat"><div class="badge" style="background:var(--green)">📊</div><div><small>Total Penjualan</small><strong>Rp 12.450.000</strong><span class="up">↑ 12% dari bulan lalu</span></div></div>
+        <div class="card stat"><div class="badge" style="background:var(--blue)">🛒</div><div><small>Total Pembelian</small><strong>Rp 8.320.000</strong><span class="up">↑ 8% dari bulan lalu</span></div></div>
+        <div class="card stat"><div class="badge" style="background:var(--orange)">📦</div><div><small>Nilai Stok Barang</small><strong>Rp 45.670.000</strong><span class="up">↑ 4% dari bulan lalu</span></div></div>
+        <div class="card stat"><div class="badge" style="background:var(--red)">🥧</div><div><small>Laba Kotor</small><strong>Rp 4.130.000</strong><span class="up">↑ 18% dari bulan lalu</span></div></div>
+      </section>
+ 
+      <section class="grid two">
+        <div class="card">
+          <div class="card-h"><h3>Grafik Penjualan &amp; Pembelian</h3>
+            <select id="year"><option>Tahun 2026</option><option>Tahun 2025</option></select></div>
+          <div class="legend"><span><i class="dot" style="background:var(--green)"></i>Penjualan</span><span><i class="dot" style="background:var(--blue)"></i>Pembelian</span></div>
+          <div class="chart-wrap"><div class="chart"><div class="yaxis"><span>20 jt</span><span>15 jt</span><span>10 jt</span><span>5 jt</span><span>0</span></div><div class="plot" id="plot"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Komposisi Stok Barang</h3>
+            <select><option>Semua Kategori</option></select></div>
+          <div class="stock">
+            <div class="donut" id="donut"><div><b>560</b><small>Total Barang</small></div></div>
+            <div class="keys" id="keys"></div>
+          </div>
+        </div>
+      </section>
+ 
+      <section class="grid two-eq">
+        <div class="card">
+          <div class="card-h"><h3>🧾 Penjualan Terbaru</h3><a href="penjualan.html">Lihat Semua</a></div>
+          <div class="tbl"><table id="t-jual"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>🛒 Pembelian Terbaru</h3><a href="pembelian.html">Lihat Semua</a></div>
+          <div class="tbl"><table id="t-beli"></table></div>
+        </div>
+      </section>
+ 
+      <section class="grid two-eq">
+        <div class="card">
+          <div class="card-h"><h3>⚠️ Stok Menipis</h3><a href="stok.html">Lihat Semua</a></div>
+          <div class="tbl"><table id="t-low"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>📈 Produk Terlaris</h3><a href="laporan-penjualan.html">Lihat Semua</a></div>
+          <div class="tbl"><table id="t-top"></table></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+ 
+<script>
+/* ====== DATA (ganti dengan data dari database/API Anda) ====== */
+const jual=[1,2,3,4,5].map(i=>i);
+const penjualan=[
+ ["11-10-2026","PJ00125","TOKO MAJU","Rp 350.000","Lunas"],
+ ["11-10-2026","PJ00124","BANGUN JAYA","Rp 1.250.000","Lunas"],
+ ["10-10-2026","PJ00123","PERINTIS MAKMUR","Rp 980.000","Piutang"],
+ ["10-10-2026","PJ00122","KITA BAKARAN BATU","Rp 160.000","Lunas"],
+ ["09-10-2026","PJ00121","KO FENDY","Rp 150.000","Lunas"]];
+const pembelian=[
+ ["11-10-2026","PB00045","PT BESI UTAMA","Rp 2.500.000","Lunas"],
+ ["09-10-2026","PB00044","CV CAT MAKMUR","Rp 1.800.000","Lunas"],
+ ["08-10-2026","PB00043","TOKO TEKNIK JAYA","Rp 950.000","Lunas"],
+ ["07-10-2026","PB00042","SINAR LOGAM","Rp 3.200.000","Piutang"],
+ ["06-10-2026","PB00041","MITRA BANGUNAN","Rp 1.150.000","Lunas"]];
+const menipis=[
+ ["BRG0012","Semen Tiga Roda",5,20,"Sak"],
+ ["BRG0031","Cat Nippon 1kg",3,15,"Kaleng"],
+ ["BRG0045","Paku 5 cm",2,10,"Kg"],
+ ["BRG0067","Lem Kaca",6,20,"Tube"],
+ ["BRG0089","Engsel Pintu",3,15,"Pcs"]];
+const terlaris=[
+ ["BRG0021","Besi Hollow 4x4",320,"Pcs","Rp 6.400.000"],
+ ["BRG0031","Cat Nippon 1kg",210,"Kaleng","Rp 5.250.000"],
+ ["BRG0040","Paku 5 cm",180,"Kg","Rp 1.800.000"],
+ ["BRG0055","Semen Tiga Roda",150,"Sak","Rp 7.500.000"],
+ ["BRG0067","Lem Kaca",120,"Tube","Rp 1.560.000"]];
+const bulan=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+const dJual=[7.8,10.5,8.8,10.2,11.5,12.2,13.6,13.2,17.2,14.8,14.6,13.2];
+const dBeli=[4.3,5.7,5.2,6.5,8.4,9.3,9.5,10.3,12.0,11.4,10.2,11.0];
+const kategori=[
+ ["Besi & Baja",24,134,"#2f7df6"],["Cat",18,101,"#fbbf24"],
+ ["Perlengkapan Bangunan",16,90,"#ef4444"],["Alat Pertukangan",14,78,"#d9b862"],
+ ["Kunci & Engsel",12,67,"#fb9d2c"],["Lainnya",16,90,"#9fb3d6"]];
+ 
+/* ====== RENDER ====== */
+const $=id=>document.getElementById(id);
+const pill=s=>`<span class="pill ${s.toLowerCase()}">${s}</span>`;
+function table(el,head,rows,fn){
+  $(el).innerHTML="<thead><tr>"+head.map(h=>`<th>${h}</th>`).join("")+"</tr></thead><tbody>"+
+  rows.map((r,i)=>"<tr><td>"+(i+1)+"</td>"+fn(r)+"</tr>").join("")+"</tbody>";
+}
+const trx=r=>`<td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${pill(r[4])}</td>`;
+table("t-jual",["No","Tanggal","Kode","Pelanggan","Total","Status"],penjualan,trx);
+table("t-beli",["No","Tanggal","Kode","Supplier","Total","Status"],pembelian,trx);
+table("t-low",["No","Kode","Nama Barang","Stok","Min. Stok","Satuan"],menipis,
+  r=>`<td>${r[0]}</td><td>${r[1]}</td><td class="low">${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td>`);
+table("t-top",["No","Kode","Nama Barang","Terjual","Satuan","Pendapatan"],terlaris,
+  r=>`<td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td>`);
+ 
+// Grafik batang (skala 0-20 jt, tinggi plot 170px)
+$("plot").innerHTML=bulan.map((b,i)=>
+ `<div class="month"><div class="bars"><i style="height:${dJual[i]/20*100}%" title="Penjualan ${dJual[i]} jt"></i><i style="height:${dBeli[i]/20*100}%" title="Pembelian ${dBeli[i]} jt"></i></div><span>${b}</span></div>`).join("");
+ 
+// Donut
+let acc=0;
+const stops=kategori.map(k=>{const s=acc;acc+=k[1];return `${k[3]} ${s}% ${acc}%`}).join(",");
+$("donut").style.background=`conic-gradient(${stops})`;
+$("keys").innerHTML=kategori.map(k=>
+ `<div><i class="dot" style="background:${k[3]}"></i><span>${k[0]}</span><em>${k[1]}% (${k[2]})</em></div>`).join("");
+ 
+// Tanggal hari ini
+$("today").textContent="📅 "+new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"short",year:"numeric"});
+ 
+// Toggle sidebar (mobile)
+$("burger").onclick=()=>$("sidebar").classList.toggle("open");
+</script>
+</body>
+</html>
+ 
+Claude finished the response

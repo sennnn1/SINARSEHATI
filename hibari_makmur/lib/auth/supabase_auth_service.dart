@@ -11,21 +11,45 @@ import 'auth_service.dart';
 /// 2. Authentication → Email Templates → "Reset Password": ganti isinya agar
 ///    memuat kode OTP, misalnya: `Kode reset password Anda: {{ .Token }}`
 ///    (aplikasi meminta pengguna mengetik kode ini, jadi tidak perlu deep link).
-/// 3. Role pengguna disimpan di user metadata `role` (default Kasir). Ubah lewat
-///    Authentication → Users → user → Edit user metadata, mis. {"role":"Admin"}.
+/// 3. Role & status akun disimpan di tabel `pengguna` (jalankan supabase/pengguna.sql).
+///    Owner mengubahnya dari menu Pengguna di aplikasi. Kalau tabelnya belum ada,
+///    sementara dipakai role dari user metadata `role`.
 class SupabaseAuthService extends AuthService {
   SupabaseAuthService() {
-    _sub = _auth.onAuthStateChange.listen((s) {
+    _sub = _auth.onAuthStateChange.listen((s) async {
       if (_sedangReset) return;
-      _user = _dariSupabase(s.session?.user);
+      final u = s.session?.user;
+      if (u == null) {
+        _user = null;
+      } else {
+        // Role dibaca ulang tiap sesi diperbarui, jadi perubahan role atau
+        // penonaktifan akun ikut berlaku tanpa menunggu login ulang.
+        try {
+          _user = await _muat(u);
+        } catch (_) {
+          // Gagal membaca profil (mis. internet putus sesaat): jangan keluarkan
+          // pengguna yang sedang bekerja; sesi berikutnya dicoba lagi.
+        }
+      }
       notifyListeners();
     });
-    _user = _dariSupabase(_auth.currentUser);
+    final u = _auth.currentUser;
+    if (u != null) {
+      _menyiapkan = true;
+      _muat(u).then<void>((v) => _user = v).catchError((_) => _user = null).whenComplete(() {
+        _menyiapkan = false;
+        notifyListeners();
+      });
+    }
   }
 
   sb.GoTrueClient get _auth => sb.Supabase.instance.client.auth;
   late final StreamSubscription<sb.AuthState> _sub;
   AuthUser? _user;
+  bool _menyiapkan = false;
+
+  /// Alasan akun ditolak masuk (nonaktif / belum disetujui), untuk pesan login.
+  String? _alasanTolak;
 
   /// Selama reset password, verifikasi OTP membuat sesi sementara; jangan
   /// sampai aplikasi langsung masuk ke dashboard.
@@ -35,21 +59,50 @@ class SupabaseAuthService extends AuthService {
   AuthUser? get user => _sedangReset ? null : _user;
 
   @override
+  bool get menyiapkan => _menyiapkan;
+
+  @override
   bool get isDemo => false;
 
-  AuthUser? _dariSupabase(sb.User? u) {
-    if (u == null) return null;
+  /// Mengambil nama, role, dan status dari tabel `pengguna`. Akun yang tidak
+  /// aktif langsung dikeluarkan dan hasilnya null.
+  Future<AuthUser?> _muat(sb.User u) async {
     final meta = u.userMetadata ?? const {};
-    return AuthUser(
-      email: u.email ?? '',
-      nama: (meta['nama'] as String?) ?? (u.email ?? '').split('@').first,
-      role: (meta['role'] as String?) ?? 'Kasir',
-    );
+    var nama = (meta['nama'] as String?) ?? (u.email ?? '').split('@').first;
+    var role = _role(meta['role'] as String?);
+    try {
+      final row = await sb.Supabase.instance.client
+          .from('pengguna')
+          .select('nama, role, aktif')
+          .eq('id', u.id)
+          .maybeSingle();
+      if (row == null || row['aktif'] != true) {
+        _alasanTolak = 'Akun Anda belum aktif atau dinonaktifkan. Hubungi Owner untuk mengaktifkannya.';
+        await _auth.signOut();
+        return null;
+      }
+      nama = (row['nama'] as String?)?.trim().isNotEmpty == true ? row['nama'] as String : nama;
+      role = _role(row['role'] as String?);
+    } on sb.PostgrestException catch (e) {
+      // Tabel belum dibuat (pengguna.sql belum dijalankan): pakai user metadata.
+      if (e.code != '42P01' && e.code != 'PGRST205') rethrow;
+    }
+    _alasanTolak = null;
+    return AuthUser(email: u.email ?? '', nama: nama, role: role);
   }
+
+  /// Role lama (Kasir/Gudang) dipetakan ke role baru.
+  static String _role(String? r) => switch (r) {
+        'Owner' || 'Admin' || 'Sales' => r!,
+        'Gudang' => 'Admin',
+        _ => 'Sales',
+      };
 
   Future<T> _jalankan<T>(Future<T> Function() f) async {
     try {
       return await f();
+    } on AuthGagal {
+      rethrow;
     } on sb.AuthException catch (e) {
       throw AuthGagal(_terjemahkan(e.message));
     } catch (_) {
@@ -74,7 +127,13 @@ class SupabaseAuthService extends AuthService {
 
   @override
   Future<void> login(String email, String password) => _jalankan(() async {
-        await _auth.signInWithPassword(email: email.trim(), password: password);
+        final r = await _auth.signInWithPassword(email: email.trim(), password: password);
+        final u = r.user;
+        if (u == null) return;
+        final profil = await _muat(u);
+        if (profil == null) throw AuthGagal(_alasanTolak ?? 'Akun tidak bisa dipakai.');
+        _user = profil;
+        notifyListeners();
       });
 
   @override
@@ -83,7 +142,7 @@ class SupabaseAuthService extends AuthService {
         final r = await _auth.signUp(
           email: email.trim(),
           password: password,
-          data: {'nama': nama.trim(), 'role': 'Kasir'},
+          data: {'nama': nama.trim()},
         );
         // Jika "Confirm email" aktif, session null sampai email diverifikasi.
         if (r.session != null) await _auth.signOut();
@@ -109,7 +168,12 @@ class SupabaseAuthService extends AuthService {
       });
     } finally {
       _sedangReset = false;
-      _user = _dariSupabase(_auth.currentUser);
+      final u = _auth.currentUser;
+      try {
+        _user = u == null ? null : await _muat(u);
+      } catch (_) {
+        _user = null;
+      }
       notifyListeners();
     }
   }

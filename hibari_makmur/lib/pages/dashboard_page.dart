@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../auth/auth_service.dart';
 import '../data/app_state.dart';
 import '../models/models.dart';
 import '../shell.dart';
@@ -30,46 +31,58 @@ class _DashboardPageState extends State<DashboardPage> {
     final pbIni = s.totalDalam(s.pembelian, ini);
     final lkIni = s.labaKotorDalam(ini);
 
+    final jam = now.hour;
+    final sapa = jam < 11
+        ? 'Selamat pagi'
+        : jam < 15
+        ? 'Selamat siang'
+        : jam < 18
+        ? 'Selamat sore'
+        : 'Selamat malam';
+    final nama = AuthScope.of(context).user?.nama.split(' ').first ?? '';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ResponsiveGrid(minItemWidth: 260, children: [
-          _StatCard(
-            icon: Icons.bar_chart_rounded,
-            color: AppColors.green,
-            label: 'Total Penjualan',
-            value: rupiah(pjIni),
-            persen: persenPerubahan(pjIni, s.totalDalam(s.penjualan, lalu)),
-          ),
-          _StatCard(
-            icon: Icons.shopping_cart_outlined,
-            color: AppColors.blue,
-            label: 'Total Pembelian',
-            value: rupiah(pbIni),
-            persen: persenPerubahan(pbIni, s.totalDalam(s.pembelian, lalu)),
-          ),
-          _StatCard(
-            icon: Icons.inventory_2_outlined,
-            color: AppColors.orange,
-            label: 'Nilai Stok Barang',
-            value: rupiah(s.nilaiStok),
-            catatan: '${s.barang.length} jenis barang',
-          ),
-          _StatCard(
-            icon: Icons.pie_chart_rounded,
-            color: AppColors.red,
-            label: 'Laba Kotor',
-            value: rupiah(lkIni),
-            persen: persenPerubahan(lkIni, s.labaKotorDalam(lalu)),
-          ),
-        ]),
-        const SizedBox(height: 16),
-        TwoColumn(
-          leftFlex: 3,
-          rightFlex: 2,
-          left: _grafik(s),
-          right: _komposisi(s),
+        PageHeader(
+          title: '$sapa${nama.isEmpty ? '' : ', $nama'} 👋',
+          subtitle: 'Ringkasan toko bulan ${namaBulan[now.month - 1]} ${now.year}',
         ),
+        ResponsiveGrid(
+          minItemWidth: 260,
+          children: [
+            _StatCard(
+              icon: Icons.bar_chart_rounded,
+              color: AppColors.green,
+              label: 'Total Penjualan',
+              value: rupiah(pjIni),
+              persen: persenPerubahan(pjIni, s.totalDalam(s.penjualan, lalu)),
+            ),
+            _StatCard(
+              icon: Icons.shopping_cart_outlined,
+              color: AppColors.blue,
+              label: 'Total Pembelian',
+              value: rupiah(pbIni),
+              persen: persenPerubahan(pbIni, s.totalDalam(s.pembelian, lalu)),
+            ),
+            _StatCard(
+              icon: Icons.inventory_2_outlined,
+              color: AppColors.orange,
+              label: 'Nilai Stok Barang',
+              value: rupiah(s.nilaiStok),
+              catatan: '${s.barang.length} jenis barang',
+            ),
+            _StatCard(
+              icon: Icons.pie_chart_rounded,
+              color: AppColors.red,
+              label: 'Laba Kotor',
+              value: rupiah(lkIni),
+              persen: persenPerubahan(lkIni, s.labaKotorDalam(lalu)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        TwoColumn(leftFlex: 3, rightFlex: 2, left: _grafik(s), right: _komposisi(s)),
         const SizedBox(height: 16),
         TwoColumn(
           left: _transaksiTerbaru(s.penjualan, true, () => nav.buka('Penjualan')),
@@ -107,10 +120,13 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const Wrap(spacing: 16, children: [
-            LegendDot(color: AppColors.green, label: 'Penjualan'),
-            LegendDot(color: AppColors.blue, label: 'Pembelian'),
-          ]),
+          const Wrap(
+            spacing: 16,
+            children: [
+              LegendDot(color: AppColors.green, label: 'Penjualan'),
+              LegendDot(color: AppColors.blue, label: 'Pembelian'),
+            ],
+          ),
           const SizedBox(height: 8),
           GroupedBarChart(
             labels: bulanPendek,
@@ -135,7 +151,9 @@ class _DashboardPageState extends State<DashboardPage> {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
               children: [
-                Expanded(child: LegendDot(color: AppColors.kategori[e.key]!, label: e.key)),
+                Expanded(
+                  child: LegendDot(color: AppColors.kategori[e.key]!, label: e.key),
+                ),
                 Text(
                   total == 0 ? '0%' : '${(e.value / total * 100).round()}%  (${e.value})',
                   style: const TextStyle(fontSize: 13),
@@ -158,12 +176,20 @@ class _DashboardPageState extends State<DashboardPage> {
     );
     return SectionCard(
       title: 'Komposisi Stok Barang',
-      child: LayoutBuilder(builder: (context, c) {
-        if (c.maxWidth < 440) {
-          return Column(children: [donut, const SizedBox(height: 12), legend]);
-        }
-        return Row(children: [donut, const SizedBox(width: 24), Expanded(child: legend)]);
-      }),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          if (c.maxWidth < 440) {
+            return Column(children: [donut, const SizedBox(height: 12), legend]);
+          }
+          return Row(
+            children: [
+              donut,
+              const SizedBox(width: 24),
+              Expanded(child: legend),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -185,14 +211,16 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
         rows: [
           for (final (i, t) in data.take(5).indexed)
-            DataRow(cells: [
-              sel('${i + 1}'),
-              sel(tgl(t.tanggal)),
-              sel(t.kode),
-              sel(t.pihak),
-              sel(rupiah(t.total)),
-              DataCell(StatusBadge(t.status)),
-            ]),
+            DataRow(
+              cells: [
+                sel('${i + 1}'),
+                sel(tgl(t.tanggal)),
+                sel(t.kode),
+                sel(t.pihak),
+                sel(rupiah(t.total)),
+                DataCell(StatusBadge(t.status)),
+              ],
+            ),
         ],
       ),
     );
@@ -209,14 +237,16 @@ class _DashboardPageState extends State<DashboardPage> {
         columns: [kol('No'), kol('Kode'), kol('Nama Barang'), kol('Stok'), kol('Min. Stok'), kol('Satuan')],
         rows: [
           for (final (i, b) in s.stokMenipis.take(5).indexed)
-            DataRow(cells: [
-              sel('${i + 1}'),
-              sel(b.kode),
-              sel(b.nama),
-              sel('${b.stok}', color: AppColors.red, bold: true),
-              sel('${b.minStok}'),
-              sel(b.satuan),
-            ]),
+            DataRow(
+              cells: [
+                sel('${i + 1}'),
+                sel(b.kode),
+                sel(b.nama),
+                sel('${b.stok}', color: AppColors.red, bold: true),
+                sel('${b.minStok}'),
+                sel(b.satuan),
+              ],
+            ),
         ],
       ),
     );
@@ -239,14 +269,16 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
         rows: [
           for (final (i, p) in data.take(5).indexed)
-            DataRow(cells: [
-              sel('${i + 1}'),
-              sel(p.kode),
-              sel(p.nama),
-              sel('${p.qty}'),
-              sel(p.satuan),
-              sel(rupiah(p.pendapatan)),
-            ]),
+            DataRow(
+              cells: [
+                sel('${i + 1}'),
+                sel(p.kode),
+                sel(p.nama),
+                sel('${p.qty}'),
+                sel(p.satuan),
+                sel(rupiah(p.pendapatan)),
+              ],
+            ),
         ],
       ),
     );
@@ -298,43 +330,105 @@ class _StatCard extends StatelessWidget {
     final naik = (persen ?? 0) >= 0;
     final warna = naik ? AppColors.green : AppColors.red;
     return AppCard(
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14)),
-            child: Icon(icon, color: Colors.white, size: 34),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 14, color: AppColors.text)),
-                const SizedBox(height: 4),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                ),
-                const SizedBox(height: 4),
-                if (persen != null)
-                  Row(children: [
-                    Icon(naik ? Icons.arrow_upward : Icons.arrow_downward, size: 16, color: warna),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text('${persen!.abs().round()}% dari bulan lalu',
-                          style: TextStyle(color: warna, fontSize: 13.5)),
-                    ),
-                  ])
-                else
-                  Text(catatan ?? 'Bulan lalu belum ada data',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 13.5)),
-              ],
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            // Lingkaran dekoratif di pojok kanan atas.
+            Positioned(
+              right: -28,
+              top: -28,
+              child: Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.07), shape: BoxShape.circle),
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(icon, color: color, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            color: AppColors.muted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (persen != null)
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: warna.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                naik ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                                size: 15,
+                                color: warna,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${persen!.abs().round()}%',
+                                style: TextStyle(color: warna, fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Flexible(
+                          child: Text(
+                            'dari bulan lalu',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      catatan ?? 'Bulan lalu belum ada data',
+                      style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

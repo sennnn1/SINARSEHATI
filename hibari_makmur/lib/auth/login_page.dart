@@ -134,7 +134,7 @@ class _LoginPageState extends State<LoginPage> {
                         _password.text = DemoAuthService.passwordDemo;
                       },
                       icon: const Icon(Icons.auto_fix_high, size: 16),
-                      label: const Text('Isi akun Admin demo'),
+                      label: const Text('Isi akun Owner demo'),
                     ),
                   ]),
                 ),

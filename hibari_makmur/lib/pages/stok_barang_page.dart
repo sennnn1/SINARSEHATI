@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../theme.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
+import 'data_barang_page.dart' show BarangFormDialog;
 
 class StokBarangPage extends StatefulWidget {
   const StokBarangPage({super.key});
@@ -33,22 +34,29 @@ class _StokBarangPageState extends State<StokBarangPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const PageHeader(
+        PageHeader(
           title: 'Stok Barang',
-          subtitle: 'Pantau jumlah stok dan lakukan penyesuaian (stock opname)',
+          subtitle: 'Pantau jumlah stok, tambah barang baru, dan lakukan penyesuaian (stock opname)',
+          actions: [
+            FilledButton.icon(
+              onPressed: () => showDialog(context: context, builder: (_) => const BarangFormDialog()),
+              icon: const Icon(Icons.add),
+              label: const Text('Tambah Barang'),
+            ),
+          ],
         ),
         ResponsiveGrid(children: [
           StatTile(
-            label: 'Total Unit Stok',
-            value: angka(s.barang.fold<int>(0, (a, b) => a + b.stok)),
-            note: '${s.barang.length} jenis barang',
-            icon: Icons.inventory_2_outlined,
+            label: 'Jenis Barang',
+            value: '${angka(s.barang.length)} barang',
+            icon: Icons.category_outlined,
             color: AppColors.blue,
           ),
           StatTile(
-            label: 'Nilai Stok',
-            value: rupiah(s.nilaiStok),
-            icon: Icons.account_balance_wallet_outlined,
+            label: 'Total Unit Stok',
+            value: angka(s.barang.fold<int>(0, (a, b) => a + b.stok)),
+            note: 'Nilai stok ${rupiah(s.nilaiStok)}',
+            icon: Icons.inventory_2_outlined,
           ),
           StatTile(
             label: 'Stok Menipis',
@@ -85,7 +93,8 @@ class _StokBarangPageState extends State<StokBarangPage> {
                 ),
               ]),
               const SizedBox(height: 12),
-              SimpleTable(
+              if (s.memuatBarang) const LinearProgressIndicator(),
+              SimpleTable.builder(
                 perPage: 15,
                 columns: [
                   kol('No'),
@@ -98,25 +107,35 @@ class _StokBarangPageState extends State<StokBarangPage> {
                   kol('Status'),
                   kol('Aksi'),
                 ],
-                rows: [
-                  for (final (i, b) in data.indexed)
-                    DataRow(cells: [
-                      sel('${i + 1}'),
-                      sel(b.kode),
-                      sel(b.nama),
-                      sel(b.kategori),
-                      sel('${b.stok}',
-                          color: b.stok <= b.minStok ? AppColors.red : null, bold: b.stok <= b.minStok),
-                      sel('${b.minStok}'),
-                      sel(b.satuan),
-                      DataCell(StatusBadge(b.statusStok)),
-                      DataCell(TextButton.icon(
+                jumlah: data.length,
+                baris: (i) {
+                  final b = data[i];
+                  return DataRow(cells: [
+                    sel('${i + 1}'),
+                    sel(b.kode),
+                    selPanjang(b.nama),
+                    sel(b.kategori),
+                    sel('${b.stok}',
+                        color: b.stok <= b.minStok ? AppColors.red : null, bold: b.stok <= b.minStok),
+                    sel('${b.minStok}'),
+                    sel(b.satuan),
+                    DataCell(StatusBadge(b.statusStok)),
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      TextButton.icon(
                         onPressed: () => showDialog(context: context, builder: (_) => _PenyesuaianDialog(b: b)),
                         icon: const Icon(Icons.tune, size: 18),
                         label: const Text('Sesuaikan'),
-                      )),
-                    ]),
-                ],
+                      ),
+                      AksiButton(
+                        icon: Icons.edit_outlined,
+                        tooltip: 'Ubah data barang',
+                        color: AppColors.blue,
+                        onPressed: () =>
+                            showDialog(context: context, builder: (_) => BarangFormDialog(barang: b)),
+                      ),
+                    ])),
+                  ]);
+                },
               ),
             ],
           ),

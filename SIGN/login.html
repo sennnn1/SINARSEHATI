@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Sinar Sehati</title>
+
+  <!-- Font Google (Montserrat & Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Stylesheet Eksternal -->
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+
+  <div class="split-container">
+
+    <!-- PANEL KIRI (Branding & Logo) -->
+    <div class="left-panel">
+      <div class="overlay"></div>
+      <div class="brand-content">
+
+        <!-- Logo SVG -->
+        <div class="logo-wrapper">
+          <svg viewBox="0 0 400 320" class="main-logo" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FFF2A1"/>
+                <stop offset="30%" stop-color="#E1AD01"/>
+                <stop offset="70%" stop-color="#C59000"/>
+                <stop offset="100%" stop-color="#8A6000"/>
+              </linearGradient>
+              <linearGradient id="silverGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="50%" stop-color="#D1D5DB"/>
+                <stop offset="100%" stop-color="#9CA3AF"/>
+              </linearGradient>
+              <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+              </filter>
+            </defs>
+
+            <g filter="url(#shadow)">
+              <!-- Atap Rumah -->
+              <path d="M 200 40 L 320 120 L 295 120 L 200 58 L 105 120 L 80 120 Z" fill="url(#goldGradient)"/>
+
+              <!-- Bagian Atas Huruf S + Kunci Pas -->
+              <path d="M 140 125 C 140 105, 250 105, 250 125 C 250 145, 140 155, 140 185 L 175 185 C 175 165, 220 160, 220 140 C 220 130, 175 130, 175 140 Z" fill="url(#goldGradient)"/>
+              <path d="M 220 130 L 260 110 C 268 106, 275 115, 270 122 L 245 142 Z" fill="url(#silverGradient)"/>
+              <circle cx="265" cy="115" r="5" fill="#111827"/>
+
+              <!-- Bagian Bawah Huruf S + Kunci Pintu -->
+              <path d="M 140 185 C 140 225, 260 225, 260 185 L 225 185 C 225 205, 175 205, 175 185 Z" fill="url(#goldGradient)"/>
+              <path d="M 130 205 C 120 205, 110 215, 120 225 C 130 235, 160 225, 180 205 Z" fill="url(#silverGradient)"/>
+              <circle cx="130" cy="215" r="4" fill="#111827"/>
+            </g>
+          </svg>
+        </div>
+
+        <h1 class="brand-title">SINAR SEHATI</h1>
+        <p class="brand-subtitle">TOKO PERKAKAS & KUNCI PINTU</p>
+
+        <!-- Icon Fitur -->
+        <div class="features-grid">
+          <div class="feature-item">
+            <div class="feature-icon"><i class="fa-regular fa-circle-check"></i></div>
+            <span>Produk Berkualitas</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon"><i class="fa-solid fa-tags"></i></div>
+            <span>Harga Terbaik</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon"><i class="fa-solid fa-truck-fast"></i></div>
+            <span>Pelayanan Cepat</span>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon"><i class="fa-regular fa-handshake"></i></div>
+            <span>Terpercaya</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- PANEL KANAN (Form Login) -->
+    <div class="right-panel">
+      <div class="login-wrapper">
+
+        <div class="login-header">
+          <h2>Selamat Datang di</h2>
+          <h2 class="highlight">Sinar Sehati</h2>
+          <p>Silakan login untuk mengakses akun Anda dan kelola toko dengan lebih mudah.</p>
+        </div>
+
+        <form id="loginForm" class="login-form" novalidate>
+
+          <div class="input-group">
+            <span class="input-icon"><i class="fa-regular fa-user"></i></span>
+            <input type="text" id="username" placeholder="Username / Email" required autocomplete="username">
+          </div>
+
+          <div class="input-group">
+            <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
+            <input type="password" id="password" placeholder="Password" required autocomplete="current-password">
+            <button type="button" class="toggle-password" id="togglePassword" aria-label="Tampilkan Password">
+              <i class="fa-regular fa-eye-slash" id="eyeIcon"></i>
+            </button>
+          </div>
+
+          <button type="submit" class="btn-login">
+            Login <i class="fa-solid fa-arrow-right"></i>
+          </button>
+
+        </form>
+
+        <div class="divider">
+          <span>atau</span>
+        </div>
+
+        <div class="login-footer">
+          <a href="#" class="forgot-pass">Lupa password?</a>
+          <p class="signup-prompt">
+            Belum punya akun? <a href="register.html" class="signup-link">Daftar sekarang</a>
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript Eksternal -->
+  <script src="login.js"></script>
+</body>
+</html>

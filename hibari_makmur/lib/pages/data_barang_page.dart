@@ -57,7 +57,8 @@ class _DataBarangPageState extends State<DataBarangPage> {
                 ),
               ]),
               const SizedBox(height: 12),
-              SimpleTable(
+              if (s.memuatBarang) const LinearProgressIndicator(),
+              SimpleTable.builder(
                 perPage: 15,
                 columns: [
                   kol('No'),
@@ -71,38 +72,39 @@ class _DataBarangPageState extends State<DataBarangPage> {
                   kol('Min.', angka: true),
                   kol('Aksi'),
                 ],
-                rows: [
-                  for (final (i, b) in data.indexed)
-                    DataRow(cells: [
-                      sel('${i + 1}'),
-                      sel(b.kode),
-                      sel(b.nama),
-                      sel(b.kategori),
-                      sel(b.satuan),
-                      sel(rupiah(b.hargaBeli)),
-                      sel(rupiah(b.hargaJual)),
-                      sel('${b.stok}', color: b.stok <= b.minStok ? AppColors.red : null),
-                      sel('${b.minStok}'),
-                      DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
-                        AksiButton(
-                          icon: Icons.edit_outlined,
-                          tooltip: 'Ubah',
-                          color: AppColors.blue,
-                          onPressed: () => _form(context, b),
-                        ),
-                        AksiButton(
-                          icon: Icons.delete_outline,
-                          tooltip: 'Hapus',
-                          color: AppColors.red,
-                          onPressed: () async {
-                            if (!await konfirmasi(context, 'Hapus barang ${b.nama}?')) return;
-                            s.hapusBarang(b.kode);
-                            if (context.mounted) toast(context, '${b.nama} dihapus');
-                          },
-                        ),
-                      ])),
-                    ]),
-                ],
+                jumlah: data.length,
+                baris: (i) {
+                  final b = data[i];
+                  return DataRow(cells: [
+                    sel('${i + 1}'),
+                    sel(b.kode),
+                    selPanjang(b.nama),
+                    sel(b.kategori),
+                    sel(b.satuan),
+                    sel(rupiah(b.hargaBeli)),
+                    sel(rupiah(b.hargaJual)),
+                    sel('${b.stok}', color: b.stok <= b.minStok ? AppColors.red : null),
+                    sel('${b.minStok}'),
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      AksiButton(
+                        icon: Icons.edit_outlined,
+                        tooltip: 'Ubah',
+                        color: AppColors.blue,
+                        onPressed: () => _form(context, b),
+                      ),
+                      AksiButton(
+                        icon: Icons.delete_outline,
+                        tooltip: 'Hapus',
+                        color: AppColors.red,
+                        onPressed: () async {
+                          if (!await konfirmasi(context, 'Hapus barang ${b.nama}?')) return;
+                          s.hapusBarang(b.kode);
+                          if (context.mounted) toast(context, '${b.nama} dihapus');
+                        },
+                      ),
+                    ])),
+                  ]);
+                },
               ),
             ],
           ),

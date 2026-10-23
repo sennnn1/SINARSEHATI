@@ -5,79 +5,128 @@ import '../data/app_state.dart';
 import '../models/models.dart';
 import '../shell.dart' show menuUntuk;
 import '../theme.dart';
+import '../utils/format.dart';
 import '../widgets/common.dart';
 
 class PenggunaPage extends StatelessWidget {
   const PenggunaPage({super.key});
 
   static String _hakAkses(String role) =>
-      role == 'Admin' ? 'Semua menu' : menuUntuk(role).map((m) => m.label).join(', ');
+      role == 'Owner' ? 'Semua menu' : menuUntuk(role).map((m) => m.label).join(', ');
 
   @override
   Widget build(BuildContext context) {
     final s = AppScope.of(context);
+    // Dengan Supabase, daftar ini adalah akun asli; tanpa itu (mode demo)
+    // masih data contoh di memori.
+    final db = s.penggunaRepo != null;
+    final emailSaya = AuthScope.read(context).user?.email.toLowerCase();
+
+    final daftar = [...s.pengguna];
+    if (db) {
+      // Akun yang perlu perhatian (belum aktif) di atas, lalu yang terbaru.
+      daftar.sort((a, b) {
+        if (a.aktif != b.aktif) return a.aktif ? 1 : -1;
+        return (b.dibuatPada ?? DateTime(2000)).compareTo(a.dibuatPada ?? DateTime(2000));
+      });
+    }
+    final belumAktif = daftar.where((p) => !p.aktif).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PageHeader(
           title: 'Pengguna',
-          subtitle: 'Kelola akun yang dapat mengakses aplikasi',
+          subtitle: db
+              ? 'Atur role dan setujui akun yang mendaftar'
+              : 'Kelola akun yang dapat mengakses aplikasi',
           actions: [
-            FilledButton.icon(
-              onPressed: () => showDialog(context: context, builder: (_) => const PenggunaFormDialog()),
-              icon: const Icon(Icons.person_add_alt),
-              label: const Text('Tambah Pengguna'),
-            ),
+            if (db)
+              OutlinedButton.icon(
+                onPressed: s.muatPenggunaDariSupabase,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Muat Ulang'),
+              )
+            else
+              FilledButton.icon(
+                onPressed: () => showDialog(context: context, builder: (_) => const PenggunaFormDialog()),
+                icon: const Icon(Icons.person_add_alt),
+                label: const Text('Tambah Pengguna'),
+              ),
           ],
         ),
+        if (db && s.errorPengguna != null)
+          _Banner(
+            warna: AppColors.red,
+            ikon: Icons.cloud_off_outlined,
+            teks: s.errorPengguna!,
+            aksi: TextButton(onPressed: s.muatPenggunaDariSupabase, child: const Text('Coba lagi')),
+          ),
+        if (db && belumAktif > 0)
+          _Banner(
+            warna: AppColors.orange,
+            ikon: Icons.hourglass_top_rounded,
+            teks: '$belumAktif akun belum aktif: akun baru yang menunggu persetujuan, atau akun yang '
+                'dinonaktifkan. Klik ✏ lalu nyalakan "Akun aktif" supaya orangnya bisa login.',
+          ),
         SectionCard(
-          title: 'Daftar Pengguna',
+          title: 'Daftar Pengguna (${daftar.length})',
           child: SimpleTable(
+            emptyText: db ? 'Belum ada pengguna.' : 'Belum ada data',
             columns: [
               kol('No'),
-              kol('Username'),
+              if (!db) kol('Username'),
               kol('Email'),
               kol('Nama Lengkap'),
               kol('Role'),
               kol('Hak Akses'),
+              if (db) kol('Terdaftar'),
               kol('Status'),
               kol('Aksi'),
             ],
             rows: [
-              for (final (i, p) in s.pengguna.indexed)
+              for (final (i, p) in daftar.indexed)
                 DataRow(cells: [
                   sel('${i + 1}'),
-                  sel(p.username),
+                  if (!db) sel(p.username),
                   sel(p.email.isEmpty ? '-' : p.email),
                   sel(p.nama),
                   sel(p.role),
-                  DataCell(SizedBox(width: 260, child: Text(_hakAkses(p.role)))),
+                  selPanjang(_hakAkses(p.role), lebar: 380),
+                  if (db) sel(p.dibuatPada == null ? '-' : tgl(p.dibuatPada!)),
                   DataCell(StatusBadge(p.aktif ? 'Aktif' : 'Nonaktif')),
                   DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                     AksiButton(
                       icon: Icons.edit_outlined,
                       tooltip: 'Ubah',
                       color: AppColors.blue,
-                      onPressed: () =>
-                          showDialog(context: context, builder: (_) => PenggunaFormDialog(pengguna: p)),
+                      onPressed: () => showDialog(
+                          context: context,
+                          builder: (_) => PenggunaFormDialog(
+                                pengguna: p,
+                                database: db,
+                                akunSaya: db && p.email.toLowerCase() == emailSaya,
+                              )),
                     ),
-                    AksiButton(
-                      icon: Icons.delete_outline,
-                      tooltip: 'Hapus',
-                      color: AppColors.red,
-                      onPressed: () async {
-                        if (p.role == 'Admin' && s.pengguna.where((e) => e.role == 'Admin').length == 1) {
-                          toast(context, 'Minimal harus ada satu Admin.', error: true);
-                          return;
-                        }
-                        if (p.email == AuthScope.read(context).user?.email) {
-                          toast(context, 'Tidak bisa menghapus akun yang sedang dipakai.', error: true);
-                          return;
-                        }
-                        if (!await konfirmasi(context, 'Hapus pengguna ${p.username}?')) return;
-                        s.hapusPengguna(p.username);
-                      },
-                    ),
+                    // Akun asli di Supabase tidak dihapus dari aplikasi; cukup dinonaktifkan.
+                    if (!db)
+                      AksiButton(
+                        icon: Icons.delete_outline,
+                        tooltip: 'Hapus',
+                        color: AppColors.red,
+                        onPressed: () async {
+                          if (p.role == 'Owner' && s.pengguna.where((e) => e.role == 'Owner').length == 1) {
+                            toast(context, 'Minimal harus ada satu Owner.', error: true);
+                            return;
+                          }
+                          if (p.email == AuthScope.read(context).user?.email) {
+                            toast(context, 'Tidak bisa menghapus akun yang sedang dipakai.', error: true);
+                            return;
+                          }
+                          if (!await konfirmasi(context, 'Hapus pengguna ${p.username}?')) return;
+                          s.hapusPengguna(p.username);
+                        },
+                      ),
                   ])),
                 ]),
             ],
@@ -88,10 +137,45 @@ class PenggunaPage extends StatelessWidget {
   }
 }
 
+class _Banner extends StatelessWidget {
+  const _Banner({required this.warna, required this.ikon, required this.teks, this.aksi});
+
+  final Color warna;
+  final IconData ikon;
+  final String teks;
+  final Widget? aksi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: warna.withValues(alpha: 0.08),
+        border: Border.all(color: warna.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(children: [
+        Icon(ikon, color: warna),
+        const SizedBox(width: 10),
+        Expanded(child: Text(teks)),
+        ?aksi,
+      ]),
+    );
+  }
+}
+
 class PenggunaFormDialog extends StatefulWidget {
-  const PenggunaFormDialog({super.key, this.pengguna});
+  const PenggunaFormDialog({super.key, this.pengguna, this.database = false, this.akunSaya = false});
 
   final Pengguna? pengguna;
+
+  /// true: mengubah akun asli di Supabase (hanya nama, role, status).
+  final bool database;
+
+  /// true: ini akun yang sedang login; role dan status dikunci supaya Owner
+  /// tidak mengunci dirinya sendiri.
+  final bool akunSaya;
 
   @override
   State<PenggunaFormDialog> createState() => _PenggunaFormDialogState();
@@ -102,8 +186,10 @@ class _PenggunaFormDialogState extends State<PenggunaFormDialog> {
   late final username = TextEditingController(text: widget.pengguna?.username);
   late final nama = TextEditingController(text: widget.pengguna?.nama);
   late final email = TextEditingController(text: widget.pengguna?.email);
-  late String role = widget.pengguna?.role ?? 'Kasir';
+  late String role = widget.pengguna?.role ?? 'Sales';
   late bool aktif = widget.pengguna?.aktif ?? true;
+  bool menyimpan = false;
+  String? error;
 
   @override
   void dispose() {
@@ -113,9 +199,38 @@ class _PenggunaFormDialogState extends State<PenggunaFormDialog> {
     super.dispose();
   }
 
+  Future<void> _simpanDb(AppState s) async {
+    if (!_form.currentState!.validate()) return;
+    final p = widget.pengguna!;
+    setState(() {
+      menyimpan = true;
+      error = null;
+    });
+    final e = await s.ubahPenggunaDb(Pengguna(
+      id: p.id,
+      username: p.username,
+      email: p.email,
+      nama: nama.text.trim(),
+      role: role,
+      aktif: aktif,
+      dibuatPada: p.dibuatPada,
+    ));
+    if (!mounted) return;
+    if (e != null) {
+      setState(() {
+        menyimpan = false;
+        error = e;
+      });
+      return;
+    }
+    toast(context, 'Perubahan ${p.email} tersimpan');
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = AppScope.read(context);
+    if (widget.database) return _bangunDb(s);
     return FormDialog(
       title: widget.pengguna == null ? 'Tambah Pengguna' : 'Ubah Pengguna',
       maxWidth: 460,
@@ -182,6 +297,75 @@ class _PenggunaFormDialogState extends State<PenggunaFormDialog> {
             title: const Text('Akun aktif'),
             value: aktif,
             onChanged: (v) => setState(() => aktif = v),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Form untuk akun asli di Supabase: email tidak bisa diubah dari sini.
+  Widget _bangunDb(AppState s) {
+    final kunci = widget.akunSaya;
+    return FormDialog(
+      title: 'Ubah Pengguna',
+      maxWidth: 460,
+      error: error,
+      menyimpan: menyimpan,
+      onSave: () => _simpanDb(s),
+      child: Form(
+        key: _form,
+        child: Column(children: [
+          TextFormField(
+            controller: email,
+            enabled: false,
+            decoration: const InputDecoration(labelText: 'Email (untuk login)'),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: nama,
+            decoration: const InputDecoration(labelText: 'Nama Lengkap'),
+            validator: (v) => (v ?? '').trim().isEmpty ? 'Wajib diisi' : null,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: role,
+            decoration: const InputDecoration(labelText: 'Role'),
+            items: [for (final r in AppState.roleList) DropdownMenuItem(value: r, child: Text(r))],
+            onChanged: kunci ? null : (v) => setState(() => role = v ?? role),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Akses ${role == 'Owner' ? 'semua menu' : menuUntuk(role).map((m) => m.label).join(', ')}',
+              style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Akun aktif'),
+            subtitle: const Text('Akun yang tidak aktif tidak bisa login'),
+            value: aktif,
+            onChanged: kunci ? null : (v) => setState(() => aktif = v),
+          ),
+          if (kunci)
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Ini akun Anda sendiri, jadi role dan status tidak bisa diubah di sini.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+              ),
+            ),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'Perubahan role berlaku saat orangnya login ulang atau memuat ulang halaman.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+              ),
+            ),
           ),
         ]),
       ),

@@ -1,0 +1,88 @@
+# CI/CD aplikasi Sinar Sehati (folder hibari_makmur).
+#
+# CI  (setiap push & pull request): cek kode (analyze) + jalankan semua tes.
+# CD  (hanya push ke master)      : build web lalu upload ke Netlify.
+#
+# Secrets yang perlu diisi di GitHub → Settings → Secrets and variables → Actions:
+#   SUPABASE_URL, SUPABASE_KEY      → sama dengan isi supabase.json
+#   NETLIFY_AUTH_TOKEN              → Netlify → User settings → Applications → Personal access tokens
+#   NETLIFY_SITE_ID                 → Netlify → Project configuration → Project ID
+name: CI/CD Sinar Sehati
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch: # bisa dijalankan manual dari tab Actions
+
+# Kalau ada push baru sebelum yang lama selesai, yang lama dibatalkan.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: hibari_makmur
+
+jobs:
+  ci:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+  deploy:
+    name: Build & Deploy ke Netlify
+    needs: ci # hanya jalan kalau analyze & tes lolos
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://musical-clafoutis-0324d1.netlify.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Siapkan supabase.json dari secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "::error::Secret SUPABASE_URL / SUPABASE_KEY belum diisi"; exit 1
+          fi
+          printf '{"SUPABASE_URL":"%s","SUPABASE_KEY":"%s"}' "$SUPABASE_URL" "$SUPABASE_KEY" > supabase.json
+
+      - name: Build web
+        run: flutter build web --release --dart-define-from-file=supabase.json
+
+      - name: Deploy ke Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          npx --yes netlify-cli deploy --dir=build/web --prod \
+            --message "Deploy ${GITHUB_SHA::7} oleh GitHub Actions"

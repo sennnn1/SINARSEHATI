@@ -20,57 +20,91 @@ class AuthLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: LayoutBuilder(builder: (context, c) {
-        final lebar = c.maxWidth >= 900;
-        final form = Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 400), child: child),
-          ),
-        );
-        if (!lebar) {
-          return Column(children: [
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(gradient: _gradien, color: AppColors.brandNavy),
-              padding: EdgeInsets.fromLTRB(16, MediaQuery.paddingOf(context).top + 20, 16, 20),
-              child: const BrandBlock(logoSize: 70, judulSize: 22),
+      body: LayoutBuilder(
+        builder: (context, c) {
+          final lebar = c.maxWidth >= 900;
+          final form = Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 400), child: child),
             ),
-            Expanded(child: form),
-          ]);
-        }
-        return Row(children: [
-          Expanded(
-            child: Container(
-              decoration: const BoxDecoration(color: AppColors.brandNavy, gradient: _gradien),
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+          );
+          if (!lebar) {
+            return Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(gradient: _gradien, color: AppColors.brandNavy),
+                  padding: EdgeInsets.fromLTRB(16, MediaQuery.paddingOf(context).top + 20, 16, 20),
+                  child: const BrandBlock(logoSize: 70, judulSize: 22),
+                ),
+                Expanded(child: form),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(color: AppColors.brandNavy, gradient: _gradien),
+                  clipBehavior: Clip.hardEdge,
+                  child: Stack(
                     children: [
-                      const BrandBlock(logoSize: 200, judulSize: 40),
-                      const SizedBox(height: 48),
-                      Container(height: 1, color: Colors.white24),
-                      const SizedBox(height: 28),
-                      const Row(children: [
-                        _Fitur(Icons.check_circle_outline, 'Produk Berkualitas'),
-                        _Fitur(Icons.sell_outlined, 'Harga Terbaik'),
-                        _Fitur(Icons.local_shipping_outlined, 'Pelayanan Cepat'),
-                        _Fitur(Icons.handshake_outlined, 'Terpercaya'),
-                      ]),
+                      const Positioned(top: -120, left: -120, child: _Lingkaran(360)),
+                      const Positioned(bottom: -160, right: -100, child: _Lingkaran(440)),
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const BrandBlock(logoSize: 200, judulSize: 40),
+                                const SizedBox(height: 48),
+                                Container(height: 1, color: Colors.white24),
+                                const SizedBox(height: 28),
+                                const Row(
+                                  children: [
+                                    _Fitur(Icons.check_circle_outline, 'Produk Berkualitas'),
+                                    _Fitur(Icons.sell_outlined, 'Harga Terbaik'),
+                                    _Fitur(Icons.local_shipping_outlined, 'Pelayanan Cepat'),
+                                    _Fitur(Icons.handshake_outlined, 'Terpercaya'),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ),
-          Expanded(child: form),
-        ]);
-      }),
+              Expanded(child: form),
+            ],
+          );
+        },
+      ),
     );
   }
+}
+
+/// Lingkaran transparan sebagai hiasan latar panel branding.
+class _Lingkaran extends StatelessWidget {
+  const _Lingkaran(this.ukuran);
+
+  final double ukuran;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: ukuran,
+    height: ukuran,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white.withValues(alpha: 0.07), width: 40),
+    ),
+  );
 }
 
 class _Fitur extends StatelessWidget {
@@ -82,13 +116,26 @@ class _Fitur extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Column(children: [
-        Icon(icon, color: Colors.white, size: 26),
-        const SizedBox(height: 8),
-        Text(label,
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Icon(icon, color: AppColors.brandGold, size: 24),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFFE5E7EB), fontSize: 12, fontWeight: FontWeight.w500)),
-      ]),
+            style: const TextStyle(color: Color(0xFFE5E7EB), fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -119,16 +166,20 @@ class AuthHeader extends StatelessWidget {
 
 /// Input dengan ikon di kiri, gaya abu-abu seperti desain HTML.
 InputDecoration authInput(String hint, IconData icon, {Widget? suffix}) => InputDecoration(
-      hintText: hint,
-      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF9CA3AF)),
-      suffixIcon: suffix,
-      fillColor: const Color(0xFFF3F4F6),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
-      ),
-    );
+  hintText: hint,
+  prefixIcon: Icon(icon, size: 20, color: const Color(0xFF9CA3AF)),
+  suffixIcon: suffix,
+  fillColor: const Color(0xFFF5F7F6),
+  contentPadding: const EdgeInsets.symmetric(vertical: 17, horizontal: 14),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(10),
+    borderSide: const BorderSide(color: Color(0xFFE8ECEA)),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(10),
+    borderSide: const BorderSide(color: AppColors.brand, width: 1.6),
+  ),
+);
 
 /// Field password dengan tombol mata (tampilkan / sembunyikan).
 class PasswordField extends StatefulWidget {
@@ -180,7 +231,13 @@ class _PasswordFieldState extends State<PasswordField> {
 
 /// Tombol hijau lebar dengan indikator loading.
 class AuthButton extends StatelessWidget {
-  const AuthButton({super.key, required this.label, required this.icon, required this.onPressed, this.loading = false});
+  const AuthButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.loading = false,
+  });
 
   final String label;
   final IconData icon;
@@ -190,7 +247,7 @@ class AuthButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 50,
+      height: 52,
       child: FilledButton(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.brand,
@@ -198,8 +255,19 @@ class AuthButton extends StatelessWidget {
         ),
         onPressed: loading ? null : onPressed,
         child: loading
-            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-            : Row(mainAxisSize: MainAxisSize.min, children: [Text(label), const SizedBox(width: 8), Icon(icon, size: 18)]),
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 8),
+                  Icon(icon, size: 18),
+                ],
+              ),
       ),
     );
   }
@@ -220,15 +288,23 @@ class PesanBox extends StatelessWidget {
         color: sukses ? const Color(0xFFD9F5E3) : const Color(0xFFFDE2E2),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(sukses ? Icons.check_circle_outline : Icons.error_outline,
-            size: 20, color: sukses ? const Color(0xFF167A43) : const Color(0xFFB91C1C)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(pesan,
-              style: TextStyle(color: sukses ? const Color(0xFF167A43) : const Color(0xFFB91C1C))),
-        ),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            sukses ? Icons.check_circle_outline : Icons.error_outline,
+            size: 20,
+            color: sukses ? const Color(0xFF167A43) : const Color(0xFFB91C1C),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              pesan,
+              style: TextStyle(color: sukses ? const Color(0xFF167A43) : const Color(0xFFB91C1C)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -240,14 +316,16 @@ class Pemisah extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 24),
-      child: Row(children: [
-        Expanded(child: Divider()),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text('atau', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-        ),
-        Expanded(child: Divider()),
-      ]),
+      child: Row(
+        children: [
+          Expanded(child: Divider()),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Text('atau', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+          ),
+          Expanded(child: Divider()),
+        ],
+      ),
     );
   }
 }

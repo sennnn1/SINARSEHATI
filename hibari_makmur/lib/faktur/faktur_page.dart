@@ -15,6 +15,30 @@ void bukaFaktur(BuildContext context, Transaksi t, {required bool penjualan}) {
   );
 }
 
+/// Data faktur [t] dengan profil toko, pengaturan faktur, dan nama pencetak.
+DataFaktur dataFaktur(BuildContext context, Transaksi t, {required bool penjualan}) {
+  final s = AppScope.read(context);
+  return DataFaktur(
+    transaksi: t,
+    penjualan: penjualan,
+    profil: s.profil,
+    pengaturan: s.faktur,
+    kontak: s.cariKontak(!penjualan, t.pihak),
+    dicetakOleh: AuthScope.read(context).user?.nama ?? '',
+  );
+}
+
+/// Langsung membuka dialog cetak (tanpa halaman pratinjau) memakai
+/// pengaturan faktur yang tersimpan.
+Future<void> cetakFaktur(BuildContext context, Transaksi t, {required bool penjualan}) {
+  final data = dataFaktur(context, t, penjualan: penjualan);
+  return Printing.layoutPdf(
+    name: 'Faktur-${t.kode}',
+    format: formatKertas(data.pengaturan.ukuran),
+    onLayout: (_) => buatFakturPdf(data),
+  );
+}
+
 /// Pratinjau faktur + panel pengaturan tampilan di sebelahnya.
 /// Perubahan pengaturan langsung terlihat dan disimpan untuk faktur berikutnya.
 class FakturPage extends StatelessWidget {
@@ -38,7 +62,8 @@ class FakturPage extends StatelessWidget {
     // Kunci berubah setiap pengaturan berubah supaya pratinjau digambar ulang.
     final kunci = [
       cfg.ukuran, cfg.judulPenjualan, cfg.judulPembelian, cfg.catatanKaki, //
-      cfg.tampilkanLogo, cfg.tampilkanTandaTangan, cfg.tampilkanTerbilang, s.profil.nama,
+      cfg.tampilkanLogo, cfg.tampilkanTandaTangan, cfg.tampilkanTerbilang, s.profil.nama, //
+      cfg.hitamPutih, cfg.rangkap, ...cfg.labelLembar,
     ].join('|');
 
     final preview = PdfPreview(
@@ -116,12 +141,16 @@ class _PengaturanFakturPanelState extends State<PengaturanFakturPanel> {
   late final _judulJual = TextEditingController(text: cfg.judulPenjualan);
   late final _judulBeli = TextEditingController(text: cfg.judulPembelian);
   late final _catatan = TextEditingController(text: cfg.catatanKaki);
+  late final _label = [for (final l in cfg.labelLembar) TextEditingController(text: l)];
 
   @override
   void dispose() {
     _judulJual.dispose();
     _judulBeli.dispose();
     _catatan.dispose();
+    for (final c in _label) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -152,12 +181,64 @@ class _PengaturanFakturPanelState extends State<PengaturanFakturPanel> {
             'A4' => '21 x 29,7 cm — printer biasa (inkjet/laser).',
             'A5' => '14,8 x 21 cm — setengah A4, umum untuk faktur toko.',
             'Continuous Form' => '9,5 x 11 inci — kertas berlubang printer dot matrix (Epson LX).',
+            'Continuous 1/2' => '9,5 x 5,5 inci — setengah continuous form, umum untuk faktur rangkap.',
             'Struk 80 mm' => 'Printer thermal kasir lebar 80 mm.',
             _ => 'Printer thermal kecil / bluetooth lebar 58 mm.',
           },
           style: const TextStyle(color: AppColors.muted, fontSize: 12),
         ),
         const SizedBox(height: 18),
+        const Text('Rangkap', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final r in PengaturanFaktur.rangkapList)
+            ChoiceChip(
+              label: Text(r),
+              selected: cfg.rangkap == r,
+              onSelected: (_) => _ubah((f) {
+                f.rangkap = r;
+                if (r == 'NCR 3 ply') {
+                  // Kertas NCR dipakai di printer dot matrix: hitam-putih & ukuran continuous.
+                  f.hitamPutih = true;
+                  if (!f.ukuran.startsWith('Continuous')) f.ukuran = 'Continuous 1/2';
+                }
+              }),
+            ),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          switch (cfg.rangkap) {
+            'NCR 3 ply' => 'Kertas rangkap 3 (putih/merah/kuning) di printer dot matrix: sekali cetak '
+                'langsung jadi 3 lembar. Keterangan warna lembar dicetak di bagian bawah.',
+            '3 lembar' => 'Untuk printer biasa: faktur dicetak 3 kali, tiap lembar diberi label peruntukannya.',
+            _ => 'Cetak satu lembar saja.',
+          },
+          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        if (cfg.rangkap != 'Tidak') ...[
+          const SizedBox(height: 10),
+          for (var i = 0; i < 3; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextField(
+                controller: _label[i],
+                decoration: InputDecoration(
+                  labelText: cfg.rangkap == 'NCR 3 ply'
+                      ? 'Lembar ${PengaturanFaktur.warnaNcr[i].toLowerCase()} untuk'
+                      : 'Lembar ${i + 1} untuk',
+                ),
+                onChanged: (v) => _ubah((f) => f.labelLembar[i] = v),
+              ),
+            ),
+        ],
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Hitam-putih (dot matrix)'),
+          subtitle: const Text('Tanpa warna, arsiran, dan logo agar tembusan rangkap tetap jelas'),
+          value: cfg.hitamPutih,
+          onChanged: (v) => _ubah((f) => f.hitamPutih = v),
+        ),
+        const SizedBox(height: 10),
         TextField(
           controller: _judulJual,
           decoration: const InputDecoration(labelText: 'Judul faktur penjualan'),

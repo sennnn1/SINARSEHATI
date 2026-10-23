@@ -8,9 +8,9 @@ import 'auth_service.dart';
 /// di [AppState]; password disimpan di memori dan hilang saat aplikasi ditutup.
 ///
 /// Akun demo — semua memakai password `admin123`:
-///   admin@sinarsehati.id  (Admin)
-///   kasir@sinarsehati.id  (Kasir)
-///   gudang@sinarsehati.id (Gudang)
+///   owner@sinarsehati.id (Owner)
+///   admin@sinarsehati.id (Admin)
+///   sales@sinarsehati.id (Sales)
 class DemoAuthService extends AuthService {
   DemoAuthService(this.data, {this.jeda = const Duration(milliseconds: 400)}) {
     for (final p in data.pengguna) {
@@ -18,7 +18,7 @@ class DemoAuthService extends AuthService {
     }
   }
 
-  static const emailDemo = 'admin@sinarsehati.id';
+  static const emailDemo = 'owner@sinarsehati.id';
   static const passwordDemo = 'admin123';
 
   final AppState data;
@@ -68,7 +68,7 @@ class DemoAuthService extends AuthService {
     for (var i = 2; data.pengguna.any((x) => x.username == username); i++) {
       username = '$dasar$i';
     }
-    data.simpanPengguna(Pengguna(username: username, nama: nama.trim(), role: 'Kasir', email: e));
+    data.simpanPengguna(Pengguna(username: username, nama: nama.trim(), role: 'Sales', email: e));
     _password[e] = password;
     return false;
   }

@@ -7,7 +7,7 @@ class AuthUser {
   final String email;
   final String nama;
 
-  /// Admin, Kasir, atau Gudang.
+  /// Owner, Admin, atau Sales.
   final String role;
 }
 
@@ -26,6 +26,9 @@ class AuthGagal implements Exception {
 /// - [SupabaseAuthService]: akun asli di Supabase, email reset dikirim sungguhan
 abstract class AuthService extends ChangeNotifier {
   AuthUser? get user;
+
+  /// true selama profil (role & status) sedang diambil dari server.
+  bool get menyiapkan => false;
 
   /// true kalau berjalan tanpa backend (mode demo).
   bool get isDemo;

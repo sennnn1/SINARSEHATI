@@ -7,6 +7,10 @@ import 'auth/login_page.dart';
 import 'auth/supabase_auth_service.dart';
 import 'config.dart';
 import 'data/app_state.dart';
+import 'data/barang_repo.dart';
+import 'data/kontak_repo.dart';
+import 'data/pengguna_repo.dart';
+import 'data/transaksi_repo.dart';
 import 'shell.dart';
 import 'theme.dart';
 
@@ -17,6 +21,22 @@ Future<void> main() async {
   if (Config.pakaiSupabase) {
     await Supabase.initialize(url: Config.supabaseUrl, publishableKey: Config.supabaseKey);
     auth = SupabaseAuthService();
+    final db = Supabase.instance.client;
+    state
+      ..repo = BarangRepo(db)
+      ..pelangganRepo = KontakRepo(db, 'pelanggan')
+      ..transaksiRepo = TransaksiRepo(db)
+      ..penggunaRepo = SupabasePenggunaRepo(db);
+    // Daftar pengguna contoh hanya untuk mode demo.
+    state.pengguna.clear();
+    // Tabel di Supabase hanya boleh dibaca pengguna yang sudah login (RLS),
+    // jadi semua data diambil sekali setelah login.
+    db.auth.onAuthStateChange.listen((e) {
+      if (e.session != null &&
+          (e.event == AuthChangeEvent.signedIn || e.event == AuthChangeEvent.initialSession)) {
+        state.muatDariSupabase();
+      }
+    });
   } else {
     auth = DemoAuthService(state);
   }
@@ -46,13 +66,16 @@ class SinarSehatiApp extends StatelessWidget {
   }
 }
 
-/// Menampilkan halaman Login kalau belum masuk, dashboard kalau sudah.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user = AuthScope.of(context).user;
+    final auth = AuthScope.of(context);
+    if (auth.menyiapkan) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final user = auth.user;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: user == null

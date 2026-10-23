@@ -1,10 +1,16 @@
+import 'dart:async';
 import 'dart:math';
 
+import 'package:file_saver/file_saver.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
+import '../utils/excel.dart';
 import '../utils/format.dart';
+
+export '../utils/excel.dart' show FormatKolom;
 
 /// Kartu putih dasar.
 class AppCard extends StatelessWidget {
@@ -19,10 +25,11 @@ class AppCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8ECEA)),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(color: Color(0x0D0F172A), blurRadius: 16, offset: Offset(0, 4)),
+          BoxShadow(color: Color(0x050F172A), blurRadius: 2, offset: Offset(0, 1)),
         ],
       ),
       child: child,
@@ -53,21 +60,40 @@ class SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          // Wrap: kalau judul dan aksi (tombol/legenda) tidak muat sebaris di
+          // layar sempit, aksi turun ke baris berikutnya.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
-              if (icon != null) ...[
-                Icon(icon, color: iconColor, size: 26),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Text(title,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.text)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(icon, color: iconColor, size: 19),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Flexible(
+                    child: Text(title,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
+                  ),
+                ],
               ),
               ?trailing,
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           child,
         ],
       ),
@@ -83,11 +109,19 @@ class LinkText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Text(text,
-          style: const TextStyle(
-              color: AppColors.link, decoration: TextDecoration.underline, fontSize: 13.5)),
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.brand,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(text, style: const TextStyle(fontSize: 13)),
+        const SizedBox(width: 4),
+        const Icon(Icons.arrow_forward_rounded, size: 15),
+      ]),
     );
   }
 }
@@ -103,7 +137,7 @@ class PageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Wrap(
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
@@ -116,10 +150,10 @@ class PageHeader extends StatelessWidget {
             children: [
               Text(title,
                   style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text)),
+                      fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.text, letterSpacing: -0.3)),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
-                Text(subtitle!, style: const TextStyle(color: AppColors.muted)),
+                Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 13.5)),
               ],
             ],
           ),
@@ -146,9 +180,13 @@ class StatusBadge extends StatelessWidget {
       _ => (const Color(0xFFE5E7EB), const Color(0xFF4B5563)),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-      child: Text(status, style: TextStyle(color: fg, fontSize: 12.5, fontWeight: FontWeight.w600)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: fg, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(status, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600)),
+      ]),
     );
   }
 }
@@ -176,22 +214,22 @@ class StatTile extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color),
+                color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(value,
                     style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.text)),
+                        fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.text, letterSpacing: -0.2)),
                 if (note != null)
                   Text(note!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
               ],
@@ -277,18 +315,45 @@ DataCell sel(String text, {Color? color, bool bold = false}) => DataCell(Text(
       style: TextStyle(color: color, fontWeight: bold ? FontWeight.w700 : null),
     ));
 
+/// Sel untuk teks panjang (mis. nama barang): dibatasi lebarnya dan turun
+/// ke baris kedua; kalau masih kepanjangan dipotong "…" dan teks lengkap
+/// muncul saat kursor diarahkan.
+DataCell selPanjang(String text, {double lebar = 340, int maxBaris = 2}) => DataCell(
+      Tooltip(
+        message: text,
+        waitDuration: const Duration(milliseconds: 500),
+        child: SizedBox(
+          width: lebar,
+          child: Text(text, maxLines: maxBaris, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+    );
+
 /// Tabel sederhana dengan scroll horizontal dan paginasi opsional.
 class SimpleTable extends StatefulWidget {
-  const SimpleTable({
+  SimpleTable({
     super.key,
     required this.columns,
-    required this.rows,
+    required List<DataRow> rows,
+    this.perPage = 0,
+    this.emptyText = 'Belum ada data',
+  })  : jumlah = rows.length,
+        baris = ((i) => rows[i]);
+
+  /// Untuk data besar: baris dibuat hanya untuk halaman yang sedang tampil,
+  /// jadi ribuan barang tidak dibangun sekaligus setiap kali layar berubah.
+  const SimpleTable.builder({
+    super.key,
+    required this.columns,
+    required this.jumlah,
+    required this.baris,
     this.perPage = 0,
     this.emptyText = 'Belum ada data',
   });
 
   final List<DataColumn> columns;
-  final List<DataRow> rows;
+  final int jumlah;
+  final DataRow Function(int i) baris;
 
   /// 0 = tanpa paginasi.
   final int perPage;
@@ -300,34 +365,65 @@ class SimpleTable extends StatefulWidget {
 
 class _SimpleTableState extends State<SimpleTable> {
   int page = 0;
+  final _geser = ScrollController();
+
+  @override
+  void dispose() {
+    _geser.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final total = widget.rows.length;
+    final total = widget.jumlah;
     final paged = widget.perPage > 0 && total > widget.perPage;
     final pages = paged ? (total / widget.perPage).ceil() : 1;
     final p = min(page, pages - 1);
-    final rows = paged
-        ? widget.rows.sublist(p * widget.perPage, min(total, (p + 1) * widget.perPage))
-        : widget.rows;
+    final dari = paged ? p * widget.perPage : 0;
+    final sampai = paged ? min(total, dari + widget.perPage) : total;
+    final rows = [for (var i = dari; i < sampai; i++) widget.baris(i)];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         LayoutBuilder(builder: (context, c) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: c.maxWidth),
-              child: DataTable(columns: widget.columns, rows: rows),
+          // Scrollbar terlihat kalau tabel lebih lebar dari layar; ruang kecil
+          // di kanan supaya efek hover tombol di kolom terakhir tidak terpotong.
+          return Scrollbar(
+            controller: _geser,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _geser,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(right: 8, bottom: 10),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: c.maxWidth - 8),
+                child: Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFEDF0EE)),
+                  ),
+                  child: DataTable(columns: widget.columns, rows: rows),
+                ),
+              ),
             ),
           );
         }),
         if (total == 0)
           Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-                child: Text(widget.emptyText, style: const TextStyle(color: AppColors.muted))),
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+            child: Column(children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(color: AppColors.bg, shape: BoxShape.circle),
+                child: const Icon(Icons.inbox_outlined, color: Color(0xFF9CA3AF), size: 26),
+              ),
+              const SizedBox(height: 10),
+              Text(widget.emptyText,
+                  textAlign: TextAlign.center, style: const TextStyle(color: AppColors.muted)),
+            ]),
           ),
         if (paged)
           Padding(
@@ -357,7 +453,9 @@ class _SimpleTableState extends State<SimpleTable> {
   }
 }
 
-class SearchBox extends StatelessWidget {
+/// Kotak pencarian. [onChanged] dipanggil setelah pengguna berhenti mengetik
+/// sebentar, supaya daftar besar tidak difilter ulang di setiap huruf.
+class SearchBox extends StatefulWidget {
   const SearchBox({super.key, required this.onChanged, this.hint = 'Cari...', this.width = 280});
 
   final ValueChanged<String> onChanged;
@@ -365,11 +463,28 @@ class SearchBox extends StatelessWidget {
   final double width;
 
   @override
+  State<SearchBox> createState() => _SearchBoxState();
+}
+
+class _SearchBoxState extends State<SearchBox> {
+  Timer? _tunda;
+
+  @override
+  void dispose() {
+    _tunda?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hint = widget.hint;
     return SizedBox(
-      width: width,
+      width: widget.width,
       child: TextField(
-        onChanged: onChanged,
+        onChanged: (v) {
+          _tunda?.cancel();
+          _tunda = Timer(const Duration(milliseconds: 250), () => widget.onChanged(v));
+        },
         decoration: InputDecoration(
           hintText: hint,
           prefixIcon: const Icon(Icons.search, size: 20),
@@ -497,8 +612,9 @@ Future<bool> konfirmasi(BuildContext context, String pesan, {String tombol = 'Ha
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.help_outline_rounded, color: AppColors.red, size: 32),
       title: const Text('Konfirmasi'),
-      content: Text(pesan),
+      content: Text(pesan, textAlign: TextAlign.center),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
         FilledButton(
@@ -516,7 +632,11 @@ void toast(BuildContext context, String pesan, {bool error = false}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      content: Text(pesan),
+      content: Row(children: [
+        Icon(error ? Icons.error_outline : Icons.check_circle_outline, color: Colors.white, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Text(pesan)),
+      ]),
       behavior: SnackBarBehavior.floating,
       backgroundColor: error ? AppColors.red : const Color(0xFF1F2937),
       width: 420,
@@ -533,11 +653,20 @@ class FormDialog extends StatelessWidget {
     this.maxWidth = 560,
     this.error,
     this.footer,
+    this.menyimpan = false,
+    this.labelSimpan = 'Simpan',
+    this.ikonSimpan = Icons.save_outlined,
   });
+
+  final String labelSimpan;
+  final IconData ikonSimpan;
 
   final String title;
   final Widget child;
   final VoidCallback onSave;
+
+  /// True selama data sedang disimpan; tombol dinonaktifkan.
+  final bool menyimpan;
   final double maxWidth;
   final String? error;
   final Widget? footer;
@@ -549,7 +678,7 @@ class FormDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -561,34 +690,58 @@ class FormDialog extends StatelessWidget {
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   ),
                   IconButton(
-                      onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                      tooltip: 'Tutup',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, color: AppColors.muted)),
                 ],
               ),
-              const Divider(),
               const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 16),
               Flexible(child: SingleChildScrollView(child: child)),
               if (error != null) ...[
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFFDE2E2), borderRadius: BorderRadius.circular(8)),
-                  child: Text(error!, style: const TextStyle(color: Color(0xFFB91C1C))),
+                      color: const Color(0xFFFDECEC),
+                      border: Border.all(color: const Color(0xFFF9CACA)),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.error_outline, size: 18, color: Color(0xFFB91C1C)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(error!, style: const TextStyle(color: Color(0xFFB91C1C)))),
+                  ]),
                 ),
               ],
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  if (footer != null) Expanded(child: footer!) else const Spacer(),
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+              LayoutBuilder(builder: (context, c) {
+                final tombol = [
+                  TextButton(
+                      onPressed: menyimpan ? null : () => Navigator.pop(context), child: const Text('Batal')),
                   const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: onSave,
-                    icon: const Icon(Icons.save_outlined, size: 18),
-                    label: const Text('Simpan'),
+                  Flexible(
+                    child: FilledButton.icon(
+                      onPressed: menyimpan ? null : onSave,
+                      icon: menyimpan
+                          ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(ikonSimpan, size: 18),
+                      label: Text(menyimpan ? 'Menyimpan...' : labelSimpan, overflow: TextOverflow.ellipsis),
+                    ),
                   ),
-                ],
-              ),
+                ];
+                // Layar sempit: ringkasan (mis. total) di atas, tombol di bawahnya.
+                if (c.maxWidth < 480) {
+                  return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    if (footer != null) ...[footer!, const SizedBox(height: 10)],
+                    Row(mainAxisAlignment: MainAxisAlignment.end, children: tombol),
+                  ]);
+                }
+                return Row(children: [
+                  if (footer != null) Expanded(child: footer!) else const Spacer(),
+                  ...tombol,
+                ]);
+              }),
             ],
           ),
         ),
@@ -625,17 +778,115 @@ class AksiButton extends StatelessWidget {
   }
 }
 
-/// Menyalin teks CSV ke clipboard.
-Future<void> salinCsv(BuildContext context, List<String> header, List<List<Object>> rows) async {
-  String esc(Object v) {
-    final s = v.toString();
-    return s.contains(',') || s.contains('"') ? '"${s.replaceAll('"', '""')}"' : s;
+/// Tombol "Unduh Excel" di kepala halaman laporan.
+class UnduhExcelButton extends StatelessWidget {
+  const UnduhExcelButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+        icon: const Icon(Icons.download_rounded, size: 18),
+        label: const Text('Unduh Excel'),
+        onPressed: onPressed,
+      );
+}
+
+/// Membuat file .xlsx lalu mengunduhnya (web) atau menyimpannya (Android).
+Future<void> unduhExcel(
+  BuildContext context, {
+  required String namaFile,
+  required String judul,
+  String subjudul = '',
+  required List<String> header,
+  required List<List<Object>> rows,
+  Map<int, FormatKolom> format = const {},
+}) async {
+  try {
+    final bytes = buatXlsx(judul: judul, subjudul: subjudul, header: header, rows: rows, format: format);
+    final nama = namaFile.replaceAll(RegExp(r'[\/:*?"<>|]'), '-');
+    final lokasi = await FileSaver.instance.saveFile(
+      name: nama,
+      bytes: bytes,
+      fileExtension: 'xlsx',
+      mimeType: MimeType.microsoftExcel,
+    );
+    if (context.mounted) {
+      toast(context, kIsWeb ? 'File $nama.xlsx diunduh.' : 'File tersimpan di $lokasi');
+    }
+  } catch (e) {
+    if (context.mounted) toast(context, 'Gagal membuat file Excel: $e', error: true);
+  }
+}
+
+/// Kolom teks dengan saran yang muncul saat mengetik; isian bebas tetap boleh.
+/// Isinya bisa diubah dari luar lewat [controller] (mis. diisi otomatis).
+class SaranField extends StatefulWidget {
+  const SaranField({
+    super.key,
+    required this.controller,
+    required this.saran,
+    required this.label,
+    this.hint,
+    this.icon,
+  });
+
+  final TextEditingController controller;
+  final Iterable<String> Function() saran;
+  final String label;
+  final String? hint;
+  final IconData? icon;
+
+  @override
+  State<SaranField> createState() => _SaranFieldState();
+}
+
+class _SaranFieldState extends State<SaranField> {
+  final _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
   }
 
-  final buf = StringBuffer()..writeln(header.map(esc).join(','));
-  for (final r in rows) {
-    buf.writeln(r.map(esc).join(','));
+  @override
+  Widget build(BuildContext context) {
+    return RawAutocomplete<String>(
+      textEditingController: widget.controller,
+      focusNode: _focus,
+      optionsBuilder: (v) {
+        final q = v.text.trim().toLowerCase();
+        return widget.saran().where((d) => d.toLowerCase().contains(q)).take(20);
+      },
+      fieldViewBuilder: (context, controller, focus, onSubmit) => TextField(
+        controller: controller,
+        focusNode: focus,
+        onSubmitted: (_) => onSubmit(),
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          hintText: widget.hint,
+          suffixIcon: widget.icon == null ? null : Icon(widget.icon, size: 20),
+        ),
+      ),
+      optionsViewBuilder: (context, onSelected, options) => Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              children: [
+                for (final o in options) ListTile(dense: true, title: Text(o), onTap: () => onSelected(o)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
-  await Clipboard.setData(ClipboardData(text: buf.toString()));
-  if (context.mounted) toast(context, 'Data CSV disalin ke clipboard — tempel di Excel.');
 }

@@ -3,10 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import 'barang_repo.dart';
+import 'kontak_repo.dart';
+import 'pengguna_repo.dart';
+import 'transaksi_repo.dart';
 import '../utils/format.dart';
 
-/// Penyimpanan data aplikasi (in-memory). Ganti isi method-method di sini
-/// dengan pemanggilan API / database kalau backend sudah siap.
+/// Penyimpanan data aplikasi. Data barang, pelanggan, transaksi, dan kartu
+/// stok disinkronkan ke Supabase kalau repo-nya diisi; data lain masih in-memory.
 class AppState extends ChangeNotifier {
   AppState() {
     muatDataContoh();
@@ -24,7 +28,18 @@ class AppState extends ChangeNotifier {
     'Pcs', 'Sak', 'Kaleng', 'Kg', 'Tube', 'Batang', //
     'Lembar', 'Galon', 'Set', 'Meter', 'Box',
   ];
-  static const roleList = ['Admin', 'Kasir', 'Gudang'];
+  static const roleList = ['Owner', 'Admin', 'Sales'];
+
+  /// Saran daerah di form pelanggan/supplier; daerah lain tetap bisa diketik.
+  static const daerahSaran = [
+    'Banda Aceh', 'Aceh Besar', 'Sabang', 'Lhokseumawe', 'Langsa', 'Meulaboh', //
+    'Sigli', 'Bireuen', 'Takengon', 'Lhoksukon', 'Kuala Simpang', //
+    'Medan', 'Binjai', 'Deli Serdang', 'Pematangsiantar', 'Tebing Tinggi', //
+    'Kisaran', 'Tanjung Balai', 'Rantau Prapat', 'Kabanjahe', 'Sibolga', 'Padang Sidempuan',
+  ];
+
+  /// Label untuk pelanggan/supplier yang daerahnya belum diisi.
+  static const tanpaDaerah = 'Belum diisi';
 
   final List<Barang> barang = [];
   final List<Kontak> supplier = [];
@@ -37,6 +52,150 @@ class AppState extends ChangeNotifier {
   ProfilToko profil = ProfilToko(nama: '', alamat: '', telepon: '', email: '');
   PengaturanFaktur faktur = PengaturanFaktur();
 
+  /// Diisi di main.dart saat aplikasi memakai Supabase.
+  BarangRepo? repo;
+  KontakRepo? pelangganRepo;
+  TransaksiRepo? transaksiRepo;
+  PenggunaRepo? penggunaRepo;
+
+  /// Pesan error saat memuat daftar pengguna (mis. pengguna.sql belum dijalankan).
+  String? errorPengguna;
+
+  /// Pesan error saat memuat transaksi (mis. transaksi.sql belum dijalankan).
+  String? errorTransaksi;
+
+  /// Pesan error saat memuat pelanggan (mis. tabel belum dibuat di Supabase).
+  String? errorPelanggan;
+
+  /// True selama daftar barang sedang diambil dari Supabase.
+  bool memuatBarang = false;
+
+  /// Pesan error terakhir saat sinkron ke Supabase (null kalau tidak ada).
+  String? errorSinkron;
+
+  /// Mengambil semua data yang disimpan di Supabase sekaligus (paralel).
+  Future<void> muatDariSupabase() => Future.wait([
+        muatBarangDariSupabase(),
+        muatPelangganDariSupabase(),
+        muatTransaksiDariSupabase(),
+        muatPenggunaDariSupabase(),
+      ]);
+
+  /// Mengganti daftar pengguna dengan isi tabel `pengguna` di Supabase.
+  /// Owner mendapat semua akun; role lain hanya melihat akunnya sendiri.
+  Future<void> muatPenggunaDariSupabase() async {
+    final r = penggunaRepo;
+    if (r == null) return;
+    try {
+      final data = await r.semua();
+      pengguna
+        ..clear()
+        ..addAll(data);
+      errorPengguna = null;
+    } catch (e) {
+      errorPengguna = 'Daftar pengguna belum bisa dimuat. ${pesanErrorPengguna(e)}';
+      debugPrint(errorPengguna);
+    }
+    notifyListeners();
+  }
+
+  /// Menyimpan perubahan nama / role / status ke database.
+  /// Mengembalikan pesan error, atau null kalau berhasil.
+  Future<String?> ubahPenggunaDb(Pengguna p) async {
+    final r = penggunaRepo;
+    if (r == null || p.id == null) return 'Pengguna tidak ditemukan.';
+    try {
+      await r.ubah(p.id!, nama: p.nama, role: p.role, aktif: p.aktif);
+    } catch (e) {
+      return pesanErrorPengguna(e);
+    }
+    final i = pengguna.indexWhere((e) => e.id == p.id);
+    if (i >= 0) pengguna[i] = p;
+    notifyListeners();
+    return null;
+  }
+
+  /// Mengganti penjualan, pembelian, dan kartu stok dengan isi Supabase.
+  Future<void> muatTransaksiDariSupabase() async {
+    final r = transaksiRepo;
+    if (r == null) return;
+    try {
+      final data = await r.semua();
+      final kartu = await r.mutasi();
+      penjualan
+        ..clear()
+        ..addAll(data.penjualan);
+      pembelian
+        ..clear()
+        ..addAll(data.pembelian);
+      mutasi
+        ..clear()
+        ..addAll(kartu);
+      errorTransaksi = null;
+    } catch (e) {
+      errorTransaksi = 'Data transaksi belum bisa dimuat. ${pesanErrorDb(e)}';
+      debugPrint(errorTransaksi);
+    }
+    notifyListeners();
+  }
+
+  /// Mengganti daftar pelanggan dengan isi tabel `pelanggan` di Supabase.
+  Future<void> muatPelangganDariSupabase() async {
+    final r = pelangganRepo;
+    if (r == null) return;
+    try {
+      final data = await r.semua();
+      pelanggan
+        ..clear()
+        ..addAll(data);
+      errorPelanggan = null;
+    } catch (e) {
+      errorPelanggan =
+          'Data pelanggan belum bisa dimuat dari Supabase. '
+          'Pastikan supabase/pelanggan.sql sudah dijalankan. ($e)';
+      debugPrint(errorPelanggan);
+    }
+    notifyListeners();
+  }
+
+  /// Mengganti daftar barang dengan isi tabel `barang` di Supabase.
+  Future<void> muatBarangDariSupabase() async {
+    final r = repo;
+    if (r == null) return;
+    memuatBarang = true;
+    notifyListeners();
+    try {
+      final data = await r.semua();
+      barang
+        ..clear()
+        ..addAll(data);
+      errorSinkron = null;
+    } catch (e) {
+      errorSinkron = 'Gagal memuat barang dari Supabase: $e';
+      debugPrint(errorSinkron);
+    }
+    memuatBarang = false;
+    notifyListeners();
+  }
+
+  void _sinkron(Future<void> Function(BarangRepo r) aksi) {
+    final r = repo;
+    if (r != null) _tangkapError(aksi(r));
+  }
+
+  void _sinkronPelanggan(Future<void> Function(KontakRepo r) aksi) {
+    final r = pelangganRepo;
+    if (r != null) _tangkapError(aksi(r));
+  }
+
+  void _tangkapError(Future<void> f) {
+    f.catchError((Object e) {
+      errorSinkron = 'Gagal menyimpan ke Supabase: $e';
+      debugPrint(errorSinkron);
+      notifyListeners();
+    });
+  }
+
   // ---------------------------------------------------------------- Barang
   Barang? cariBarang(String kode) {
     for (final b in barang) {
@@ -45,8 +204,10 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// Barang yang perlu diisi ulang. Barang dengan min. stok 0 (belum diatur)
+  /// tidak ikut, supaya notifikasi tidak penuh oleh barang hasil impor Excel.
   List<Barang> get stokMenipis =>
-      barang.where((b) => b.stok <= b.minStok).toList()
+      barang.where((b) => b.minStok > 0 && b.stok <= b.minStok).toList()
         ..sort((a, b) => (a.stok / max(a.minStok, 1)).compareTo(b.stok / max(b.minStok, 1)));
 
   double get nilaiStok => barang.fold(0, (s, b) => s + b.nilaiStok);
@@ -58,11 +219,13 @@ class AppState extends ChangeNotifier {
     } else {
       barang.add(b);
     }
+    _sinkron((r) => r.simpan(b, kodeLama: kodeLama));
     notifyListeners();
   }
 
   void hapusBarang(String kode) {
     barang.removeWhere((b) => b.kode == kode);
+    _sinkron((r) => r.hapus(kode));
     notifyListeners();
   }
 
@@ -70,12 +233,19 @@ class AppState extends ChangeNotifier {
   void sesuaikanStok(String kode, int stokBaru, String keterangan) {
     final b = cariBarang(kode);
     if (b == null) return;
-    _ubahStok(b, stokBaru - b.stok, keterangan, DateTime.now());
+    final r = transaksiRepo;
+    if (r != null) {
+      // Database mencatat stok dan kartu stok sekaligus.
+      _tangkapError(r.sesuaikanStok(kode, stokBaru, keterangan));
+    }
+    _ubahStok(b, stokBaru - b.stok, keterangan, DateTime.now(), sinkron: r == null);
     notifyListeners();
   }
 
-  void _ubahStok(Barang b, int delta, String keterangan, DateTime tanggal) {
+  /// [sinkron] false kalau stok di database sudah diubah oleh fungsi database.
+  void _ubahStok(Barang b, int delta, String keterangan, DateTime tanggal, {bool sinkron = true}) {
     b.stok = max(0, b.stok + delta);
+    if (sinkron) _sinkron((r) => r.ubahStok(b.kode, b.stok));
     mutasi.insert(
       0,
       MutasiStok(
@@ -98,17 +268,20 @@ class AppState extends ChangeNotifier {
     } else {
       list.add(k);
     }
+    if (!isSupplier) _sinkronPelanggan((r) => r.simpan(k, kodeLama: kodeLama));
     notifyListeners();
   }
 
   void hapusKontak(bool isSupplier, String kode) {
     (isSupplier ? supplier : pelanggan).removeWhere((e) => e.kode == kode);
+    if (!isSupplier) _sinkronPelanggan((r) => r.hapus(kode));
     notifyListeners();
   }
 
   // -------------------------------------------------------------- Transaksi
-  /// Mengembalikan pesan error, atau null kalau berhasil.
-  String? tambahPenjualan(Transaksi t) {
+  /// Menyimpan penjualan. Mengembalikan pesan error, atau null kalau berhasil.
+  /// Dengan Supabase, nomor faktur [Transaksi.kode] diganti nomor dari database.
+  Future<String?> tambahPenjualan(Transaksi t) async {
     final butuh = <String, int>{};
     for (final i in t.items) {
       butuh[i.kodeBarang] = (butuh[i.kodeBarang] ?? 0) + i.qty;
@@ -120,54 +293,80 @@ class AppState extends ChangeNotifier {
         return 'Stok ${b.nama} tidak cukup (tersedia ${b.stok} ${b.satuan})';
       }
     }
+    final err = await _simpanKeDb(t, penjualan: true);
+    if (err != null) return err;
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang)!;
       i.hargaPokok = b.hargaBeli;
-      _ubahStok(b, -i.qty, 'Penjualan ${t.kode}', t.tanggal);
+      _ubahStok(b, -i.qty, 'Penjualan ${t.kode}', t.tanggal, sinkron: transaksiRepo == null);
     }
     penjualan.add(t);
     notifyListeners();
     return null;
   }
 
-  void tambahPembelian(Transaksi t) {
+  /// Menyimpan pembelian. Mengembalikan pesan error, atau null kalau berhasil.
+  Future<String?> tambahPembelian(Transaksi t) async {
+    final err = await _simpanKeDb(t, penjualan: false);
+    if (err != null) return err;
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang);
       if (b == null) continue;
       b.hargaBeli = i.harga; // harga beli terakhir
-      _ubahStok(b, i.qty, 'Pembelian ${t.kode}', t.tanggal);
+      i.hargaPokok = i.harga;
+      _ubahStok(b, i.qty, 'Pembelian ${t.kode}', t.tanggal, sinkron: transaksiRepo == null);
     }
     pembelian.add(t);
     notifyListeners();
+    return null;
+  }
+
+  Future<String?> _simpanKeDb(Transaksi t, {required bool penjualan}) async {
+    final r = transaksiRepo;
+    if (r == null) return null;
+    try {
+      t.kode = await r.simpan(t, penjualan: penjualan);
+      return null;
+    } catch (e) {
+      return pesanErrorDb(e);
+    }
   }
 
   /// Menghapus transaksi dan mengembalikan stok seperti semula.
-  void hapusTransaksi(Transaksi t, {required bool isPenjualan}) {
+  /// Mengembalikan pesan error, atau null kalau berhasil.
+  Future<String?> hapusTransaksi(Transaksi t, {required bool isPenjualan}) async {
+    final r = transaksiRepo;
+    if (r != null) {
+      try {
+        await r.hapus(t.kode);
+      } catch (e) {
+        return pesanErrorDb(e);
+      }
+    }
     for (final i in t.items) {
       final b = cariBarang(i.kodeBarang);
       if (b == null) continue;
-      _ubahStok(b, isPenjualan ? i.qty : -i.qty, 'Batal ${t.kode}', DateTime.now());
+      _ubahStok(b, isPenjualan ? i.qty : -i.qty, 'Batal ${t.kode}', DateTime.now(), sinkron: r == null);
     }
     (isPenjualan ? penjualan : pembelian).remove(t);
     notifyListeners();
+    return null;
   }
 
   void ubahStatus(Transaksi t, String status) {
     t.status = status;
+    final r = transaksiRepo;
+    if (r != null) _tangkapError(r.ubahStatus(t.kode, status));
     notifyListeners();
   }
 
-  Iterable<Transaksi> dalam(List<Transaksi> list, DateTimeRange r) =>
-      list.where((t) => dalamRentang(t.tanggal, r));
+  Iterable<Transaksi> dalam(List<Transaksi> list, DateTimeRange r) => list.where((t) => dalamRentang(t.tanggal, r));
 
-  double totalDalam(List<Transaksi> list, DateTimeRange r) =>
-      dalam(list, r).fold(0, (s, t) => s + t.total);
+  double totalDalam(List<Transaksi> list, DateTimeRange r) => dalam(list, r).fold(0, (s, t) => s + t.total);
 
-  double labaKotorDalam(DateTimeRange r) =>
-      dalam(penjualan, r).fold(0, (s, t) => s + t.labaKotor);
+  double labaKotorDalam(DateTimeRange r) => dalam(penjualan, r).fold(0, (s, t) => s + t.labaKotor);
 
-  double biayaDalam(DateTimeRange r) =>
-      biaya.where((b) => dalamRentang(b.tanggal, r)).fold(0, (s, b) => s + b.jumlah);
+  double biayaDalam(DateTimeRange r) => biaya.where((b) => dalamRentang(b.tanggal, r)).fold(0, (s, b) => s + b.jumlah);
 
   List<int> get tahunTersedia {
     final set = <int>{DateTime.now().year};
@@ -234,6 +433,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Daerah yang sudah dipakai pelanggan & supplier (urut abjad).
+  List<String> get daerahTerpakai {
+    final set = <String>{};
+    for (final d in [
+      for (final k in [...pelanggan, ...supplier]) k.daerah,
+      for (final t in [...penjualan, ...pembelian]) t.daerah,
+    ]) {
+      if (d.trim().isNotEmpty) set.add(d.trim());
+    }
+    return set.toList()..sort();
+  }
+
+  /// Daerah pelanggan (atau supplier) dengan nama [nama].
+  String daerahPihak(bool isSupplier, String nama) {
+    final d = cariKontak(isSupplier, nama)?.daerah.trim() ?? '';
+    return d.isEmpty ? tanpaDaerah : d;
+  }
+
+  /// Daerah transaksi [t]; transaksi lama tanpa daerah memakai daerah pelanggannya.
+  String daerahTransaksi(Transaksi t, {required bool penjualan}) =>
+      t.daerah.trim().isNotEmpty ? t.daerah.trim() : daerahPihak(!penjualan, t.pihak);
+
+  /// Menyamakan penulisan daerah dengan yang sudah ada (mis. "medan" → "Medan"),
+  /// supaya laporan per daerah tidak terpecah karena beda huruf besar/kecil.
+  String rapikanDaerah(String daerah) {
+    final d = daerah.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (d.isEmpty) return '';
+    for (final x in [...daerahTerpakai, ...daerahSaran]) {
+      if (x.toLowerCase() == d.toLowerCase()) return x;
+    }
+    return d.split(' ').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+  }
+
   Kontak? cariKontak(bool isSupplier, String nama) {
     for (final k in isSupplier ? supplier : pelanggan) {
       if (k.nama == nama) return k;
@@ -271,32 +503,91 @@ class AppState extends ChangeNotifier {
     supplier
       ..clear()
       ..addAll([
-        Kontak(kode: 'SUP001', nama: 'PT BESI UTAMA', telepon: '021-5550123', alamat: 'Jl. Industri No. 12, Jakarta'),
-        Kontak(kode: 'SUP002', nama: 'CV CAT MAKMUR', telepon: '0812-3456-7890', alamat: 'Jl. Merdeka No. 45, Bandung'),
-        Kontak(kode: 'SUP003', nama: 'TOKO TEKNIK JAYA', telepon: '0813-2222-1111', alamat: 'Jl. Pahlawan No. 8, Bekasi'),
-        Kontak(kode: 'SUP004', nama: 'SINAR LOGAM', telepon: '021-7778899', alamat: 'Jl. Raya Bogor Km 20, Jakarta'),
-        Kontak(kode: 'SUP005', nama: 'MITRA BANGUNAN', telepon: '0815-9090-1212', alamat: 'Jl. Sudirman No. 101, Tangerang'),
+        Kontak(
+          kode: 'SUP001',
+          nama: 'PT BESI UTAMA',
+          telepon: '061-4550123',
+          alamat: 'Jl. Industri No. 12',
+          daerah: 'Medan',
+        ),
+        Kontak(
+          kode: 'SUP002',
+          nama: 'CV CAT MAKMUR',
+          telepon: '0812-3456-7890',
+          alamat: 'Jl. Merdeka No. 45',
+          daerah: 'Medan',
+        ),
+        Kontak(
+          kode: 'SUP003',
+          nama: 'TOKO TEKNIK JAYA',
+          telepon: '0813-2222-1111',
+          alamat: 'Jl. Pahlawan No. 8',
+          daerah: 'Banda Aceh',
+        ),
+        Kontak(
+          kode: 'SUP004',
+          nama: 'SINAR LOGAM',
+          telepon: '061-7778899',
+          alamat: 'Jl. Sisingamangaraja',
+          daerah: 'Medan',
+        ),
+        Kontak(
+          kode: 'SUP005',
+          nama: 'MITRA BANGUNAN',
+          telepon: '0815-9090-1212',
+          alamat: 'Jl. Teuku Umar No. 101',
+          daerah: 'Banda Aceh',
+        ),
       ]);
 
     pelanggan
       ..clear()
       ..addAll([
-        Kontak(kode: 'PLG001', nama: 'TOKO MAJU', telepon: '0812-1111-2222', alamat: 'Jl. Melati No. 3'),
-        Kontak(kode: 'PLG002', nama: 'BANGUN JAYA', telepon: '0813-3333-4444', alamat: 'Jl. Kenanga No. 17'),
-        Kontak(kode: 'PLG003', nama: 'PERINTIS MAKMUR', telepon: '0821-5555-6666', alamat: 'Jl. Anggrek No. 9'),
-        Kontak(kode: 'PLG004', nama: 'KITA BAKARAN BATU', telepon: '0857-7777-8888', alamat: 'Jl. Mawar No. 21'),
-        Kontak(kode: 'PLG005', nama: 'KO FENDY', telepon: '0819-9999-0000', alamat: 'Jl. Dahlia No. 5'),
+        Kontak(
+          kode: 'PLG001',
+          nama: 'TOKO MAJU',
+          telepon: '0812-1111-2222',
+          alamat: 'Jl. Melati No. 3',
+          daerah: 'Banda Aceh',
+        ),
+        Kontak(
+          kode: 'PLG002',
+          nama: 'BANGUN JAYA',
+          telepon: '0813-3333-4444',
+          alamat: 'Jl. Kenanga No. 17',
+          daerah: 'Medan',
+        ),
+        Kontak(
+          kode: 'PLG003',
+          nama: 'PERINTIS MAKMUR',
+          telepon: '0821-5555-6666',
+          alamat: 'Jl. Anggrek No. 9',
+          daerah: 'Lhokseumawe',
+        ),
+        Kontak(
+          kode: 'PLG004',
+          nama: 'KITA BAKARAN BATU',
+          telepon: '0857-7777-8888',
+          alamat: 'Jl. Mawar No. 21',
+          daerah: 'Medan',
+        ),
+        Kontak(
+          kode: 'PLG005',
+          nama: 'KO FENDY',
+          telepon: '0819-9999-0000',
+          alamat: 'Jl. Dahlia No. 5',
+          daerah: 'Binjai',
+        ),
         Kontak(kode: 'PLG006', nama: 'UMUM', alamat: '-'),
       ]);
 
     pengguna
       ..clear()
       ..addAll([
-        Pengguna(username: 'admin', nama: 'Administrator', role: 'Admin', email: 'admin@sinarsehati.id'),
-        Pengguna(username: 'kasir1', nama: 'Rina Lestari', role: 'Kasir', email: 'kasir@sinarsehati.id'),
-        Pengguna(username: 'gudang1', nama: 'Budi Santoso', role: 'Gudang', email: 'gudang@sinarsehati.id'),
-        Pengguna(
-            username: 'kasir2', nama: 'Dewi Anggraini', role: 'Kasir', email: 'dewi@sinarsehati.id', aktif: false),
+        Pengguna(username: 'owner', nama: 'Pemilik Toko', role: 'Owner', email: 'owner@sinarsehati.id'),
+        Pengguna(username: 'admin', nama: 'Budi Santoso', role: 'Admin', email: 'admin@sinarsehati.id'),
+        Pengguna(username: 'sales1', nama: 'Rina Lestari', role: 'Sales', email: 'sales@sinarsehati.id'),
+        Pengguna(username: 'sales2', nama: 'Dewi Anggraini', role: 'Sales', email: 'dewi@sinarsehati.id', aktif: false),
       ]);
 
     profil = ProfilToko(
@@ -306,106 +597,40 @@ class AppState extends ChangeNotifier {
       email: 'admin@sinarsehati.id',
     );
 
-    _buatTransaksiContoh();
+    // Penjualan & pembelian mulai kosong; dengan Supabase diambil dari database.
+    penjualan.clear();
+    pembelian.clear();
+    biaya.clear();
     mutasi.clear();
     notifyListeners();
+    // Saat memakai Supabase, barang, pelanggan & transaksi tetap diambil dari database.
+    if (repo != null) muatDariSupabase();
   }
 
-  Barang _b(String kode, String nama, String kat, String sat, int stok, int min,
-          double beli, double jual) =>
-      Barang(
-        kode: kode,
-        nama: nama,
-        kategori: kat,
-        satuan: sat,
-        stok: stok,
-        minStok: min,
-        hargaBeli: beli,
-        hargaJual: jual,
-      );
-
-  void _buatTransaksiContoh() {
-    final rnd = Random(7);
-    final now = DateTime.now();
-    final pj = <Transaksi>[];
-    final pb = <Transaksi>[];
-    biaya.clear();
-
-    List<ItemTransaksi> acakItem({required bool jual}) {
-      final pilih = [...barang]..shuffle(rnd);
-      return pilih.take(1 + rnd.nextInt(3)).map((b) {
-        final mahal = b.hargaBeli >= 60000;
-        var qty = mahal ? 1 + rnd.nextInt(5) : 5 + rnd.nextInt(30);
-        if (!jual) qty *= 2;
-        return ItemTransaksi(
-          kodeBarang: b.kode,
-          namaBarang: b.nama,
-          satuan: b.satuan,
-          qty: qty,
-          harga: jual ? b.hargaJual : b.hargaBeli,
-          hargaPokok: b.hargaBeli,
-        );
-      }).toList();
-    }
-
-    for (var y = now.year - 1; y <= now.year; y++) {
-      for (var m = 1; m <= 12; m++) {
-        if (DateTime(y, m, 1).isAfter(now)) break;
-        final bulanIni = y == now.year && m == now.month;
-        final hariMaks = bulanIni ? now.day : DateUtils.getDaysInMonth(y, m);
-        final musim = 1 + (m >= 6 && m <= 9 ? 0.3 : 0.0);
-        final nPj = ((6 + rnd.nextInt(5)) * musim).round();
-        for (var i = 0; i < nPj; i++) {
-          pj.add(Transaksi(
-            kode: '',
-            tanggal: DateTime(y, m, 1 + rnd.nextInt(hariMaks)),
-            pihak: pelanggan[rnd.nextInt(pelanggan.length)].nama,
-            items: acakItem(jual: true),
-            status: rnd.nextDouble() < (bulanIni ? 0.3 : 0.08) ? 'Piutang' : 'Lunas',
-          ));
-        }
-        final nPb = 2 + rnd.nextInt(2);
-        for (var i = 0; i < nPb; i++) {
-          pb.add(Transaksi(
-            kode: '',
-            tanggal: DateTime(y, m, 1 + rnd.nextInt(hariMaks)),
-            pihak: supplier[rnd.nextInt(supplier.length)].nama,
-            items: acakItem(jual: false),
-            status: rnd.nextDouble() < (bulanIni ? 0.3 : 0.05) ? 'Hutang' : 'Lunas',
-          ));
-        }
-        biaya
-          ..add(Biaya(tanggal: DateTime(y, m, 1), keterangan: 'Listrik & Air', jumlah: 350000))
-          ..add(Biaya(tanggal: DateTime(y, m, 1), keterangan: 'Transportasi / Ongkir', jumlah: 250000));
-      }
-    }
-
-    pj.sort((a, b) => a.tanggal.compareTo(b.tanggal));
-    pb.sort((a, b) => a.tanggal.compareTo(b.tanggal));
-    for (var i = 0; i < pj.length; i++) {
-      pj[i].kode = 'PJ${(i + 1).toString().padLeft(5, '0')}';
-    }
-    for (var i = 0; i < pb.length; i++) {
-      pb[i].kode = 'PB${(i + 1).toString().padLeft(5, '0')}';
-    }
-    penjualan
-      ..clear()
-      ..addAll(pj);
-    pembelian
-      ..clear()
-      ..addAll(pb);
-  }
+  Barang _b(String kode, String nama, String kat, String sat, int stok, int min, double beli, double jual) => Barang(
+    kode: kode,
+    nama: nama,
+    kategori: kat,
+    satuan: sat,
+    stok: stok,
+    minStok: min,
+    hargaBeli: beli,
+    hargaJual: jual,
+  );
 }
 
 /// Menyediakan [AppState] ke seluruh widget. Ambil dengan `AppScope.of(context)`.
-class AppScope extends InheritedNotifier<AppState> {
-  const AppScope({super.key, required AppState state, required super.child})
-      : super(notifier: state);
+///
+/// [pemicu] (opsional) menentukan kapan widget di bawahnya dibangun ulang;
+/// dipakai shell agar halaman yang sedang tersembunyi tidak ikut rebuild.
+class AppScope extends InheritedNotifier<Listenable> {
+  const AppScope({super.key, required this.state, Listenable? pemicu, required super.child})
+    : super(notifier: pemicu ?? state);
 
-  static AppState of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;
+  final AppState state;
+
+  static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<AppScope>()!.state;
 
   /// Ambil state tanpa ikut rebuild (untuk dipakai di callback).
-  static AppState read(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<AppScope>()!.notifier!;
+  static AppState read(BuildContext context) => context.getInheritedWidgetOfExactType<AppScope>()!.state;
 }

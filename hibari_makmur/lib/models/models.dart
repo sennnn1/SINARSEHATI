@@ -46,12 +46,16 @@ class Kontak {
     required this.nama,
     this.telepon = '',
     this.alamat = '',
+    this.daerah = '',
   });
 
   String kode;
   String nama;
   String telepon;
   String alamat;
+
+  /// Kota / kabupaten, mis. Banda Aceh, Medan. Dipakai untuk laporan per daerah.
+  String daerah;
 }
 
 class ItemTransaksi {
@@ -84,6 +88,7 @@ class Transaksi {
     required this.items,
     required this.status,
     this.catatan = '',
+    this.daerah = '',
   });
 
   String kode;
@@ -91,6 +96,10 @@ class Transaksi {
 
   /// Nama pelanggan (penjualan) atau supplier (pembelian).
   final String pihak;
+
+  /// Daerah tujuan/asal transaksi; awalnya diambil dari daerah pelanggan,
+  /// bisa diubah (mis. pelanggan UMUM dari Medan).
+  final String daerah;
   final List<ItemTransaksi> items;
   String status;
   final String catatan;
@@ -109,6 +118,8 @@ class Pengguna {
     required this.role,
     this.email = '',
     this.aktif = true,
+    this.id,
+    this.dibuatPada,
   });
 
   String username;
@@ -116,6 +127,10 @@ class Pengguna {
   String email;
   String role;
   bool aktif;
+
+  /// Id akun di Supabase (kosong di mode demo).
+  String? id;
+  DateTime? dibuatPada;
 }
 
 class MutasiStok {
@@ -169,9 +184,21 @@ class PengaturanFaktur {
     this.tampilkanLogo = true,
     this.tampilkanTandaTangan = true,
     this.tampilkanTerbilang = true,
-  });
+    this.hitamPutih = false,
+    this.rangkap = 'Tidak',
+    List<String>? labelLembar,
+  }) : labelLembar = labelLembar ?? ['Pelanggan', 'Arsip Toko', 'Gudang'];
 
-  static const ukuranList = ['A4', 'A5', 'Continuous Form', 'Struk 80 mm', 'Struk 58 mm'];
+  static const ukuranList = [
+    'A4', 'A5', 'Continuous Form', 'Continuous 1/2', 'Struk 80 mm', 'Struk 58 mm', //
+  ];
+
+  /// - Tidak       : satu lembar biasa.
+  /// - NCR 3 ply   : kertas rangkap 3 (putih/merah/kuning) untuk printer dot matrix;
+  ///                 sekali cetak jadi 3, jadi PDF tetap 1 halaman + keterangan warna lembar.
+  /// - 3 lembar    : kertas biasa; PDF berisi 3 salinan dengan label lembar masing-masing.
+  static const rangkapList = ['Tidak', 'NCR 3 ply', '3 lembar'];
+  static const warnaNcr = ['Putih', 'Merah', 'Kuning'];
 
   String ukuran;
   String judulPenjualan;
@@ -180,6 +207,14 @@ class PengaturanFaktur {
   bool tampilkanLogo;
   bool tampilkanTandaTangan;
   bool tampilkanTerbilang;
+
+  /// Tanpa warna/arsiran & tanpa logo — paling jelas untuk printer dot matrix
+  /// dan tembusan kertas rangkap.
+  bool hitamPutih;
+  String rangkap;
+
+  /// Peruntukan lembar 1, 2, 3 (mis. Pelanggan, Arsip Toko, Gudang).
+  List<String> labelLembar;
 
   bool get struk => ukuran.startsWith('Struk');
 }

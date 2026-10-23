@@ -45,7 +45,8 @@ class _DaftarPageState extends State<DaftarPage> {
       Navigator.pop(
         context,
         perluVerifikasi
-            ? 'Pendaftaran berhasil. Cek email ${_email.text.trim()} untuk verifikasi, lalu login.'
+            ? 'Pendaftaran berhasil. Cek email ${_email.text.trim()} untuk verifikasi. '
+                'Akun bisa dipakai setelah disetujui Owner.'
             : 'Pendaftaran berhasil. Silakan login dengan akun baru Anda.',
       );
     } on AuthGagal catch (e) {
@@ -102,9 +103,11 @@ class _DaftarPageState extends State<DaftarPage> {
               onSubmitted: (_) => _daftar(),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Akun baru otomatis mendapat peran Kasir. Admin dapat mengubah peran di menu Pengguna.',
-              style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+            Text(
+              AuthScope.read(context).isDemo
+                  ? 'Akun baru otomatis mendapat peran Sales. Owner dapat mengubah peran di menu Pengguna.'
+                  : 'Akun baru mendapat peran Sales dan baru bisa dipakai setelah disetujui Owner di menu Pengguna.',
+              style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
             ),
             const SizedBox(height: 20),
             AuthButton(label: 'Daftar Sekarang', icon: Icons.person_add_alt, loading: _loading, onPressed: _daftar),
