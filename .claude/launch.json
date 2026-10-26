@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "sinar-web", "runtimeExecutable": "python", "runtimeArgs": ["-m", "http.server", "8766", "-d", "D:/SKRIPSI/hibari_makmur/build/web"], "port": 8766 }
+  ]
+}
